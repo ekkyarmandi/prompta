@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "prompta"
-version = "0.2.7"
+version = "0.2.8"
 description = "A powerful CLI tool for managing and versioning prompts across projects"
 readme = "README.md"
 license = {file = "LICENSE"}
@@ -39,6 +39,11 @@ dependencies = [
     "tqdm>=4.64.0",
     "pydantic>=2.0.0",
 ]
+
+[project.urls]
+"Homepage" = "https://github.com/ekkyarmandi/prompta"
+"Bug Tracker" = "https://github.com/ekkyarmandi/prompta/issues"
+"Source Code" = "https://github.com/ekkyarmandi/prompta"
 
 [project.optional-dependencies]
 dev = [
