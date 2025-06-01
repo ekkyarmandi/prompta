@@ -110,6 +110,9 @@ copy_directory() {
             
             # Create empty versions directory but don't copy its contents
             mkdir -p "$target_path/versions"
+
+            # Create empty __init__.py to ensure versions is a proper package
+            touch "$target_path/versions/__init__.py"
             
         else
             # For other directories, copy directory contents recursively
