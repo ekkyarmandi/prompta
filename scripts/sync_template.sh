@@ -66,12 +66,8 @@ FILES=(
     "alembic.ini"
     "README.md"
     "docker-compose.yml"
-    "Dockerfile"
-)
-
-# List of files to preserve in target directory (don't overwrite)
-PRESERVE_FILES=(
     "requirements.txt"
+    "Dockerfile"
 )
 
 # Function to copy directory
