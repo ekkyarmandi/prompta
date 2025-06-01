@@ -103,8 +103,18 @@ copy_directory() {
             rm -rf "$target_path"/*
         fi
         
-        # Copy directory contents recursively
-        cp -r "$source_path"/* "$target_path"/ 2>/dev/null || true
+        # Special handling for migrations directory (exclude versions content)
+        if [ "$dir_name" = "migrations" ]; then
+            # First copy all regular files from migrations
+            find "$source_path" -maxdepth 1 -type f -exec cp {} "$target_path"/ \;
+            
+            # Create empty versions directory but don't copy its contents
+            mkdir -p "$target_path/versions"
+            
+        else
+            # For other directories, copy directory contents recursively
+            cp -r "$source_path"/* "$target_path"/ 2>/dev/null || true
+        fi
         
         # Restore preserved files if they were backed up
         if [ "$has_preserved_files" = true ]; then

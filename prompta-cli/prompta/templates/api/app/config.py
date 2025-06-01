@@ -1,50 +1,37 @@
-from typing import Optional
-from pydantic_settings import BaseSettings
-from pydantic import validator
-from decouple import config
+from typing import Optional, List
+from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic import Field
 
 
 class Settings(BaseSettings):
+    model_config = SettingsConfigDict(
+        env_file=".env", env_file_encoding="utf-8", case_sensitive=False, extra="ignore"
+    )
+
     # Application
     app_name: str = "Prompta API"
     app_version: str = "1.0.0"
-    debug: bool = config("DEBUG", default=False, cast=bool)
+    debug: bool = False
 
     # Database
-    database_url: str = config("DATABASE_URL", default="sqlite:///./prompta.db")
+    database_url: str = "sqlite:///./sqlite.db"
 
     # Security
-    secret_key: str = config(
-        "SECRET_KEY",
-        default="your-super-secret-key-change-this-in-production-at-least-32-characters-long",
+    secret_key: str = (
+        "your-super-secret-key-change-this-in-production-at-least-32-characters-long"
     )
     algorithm: str = "HS256"
-    access_token_expire_minutes: int = config(
-        "ACCESS_TOKEN_EXPIRE_MINUTES", default=30, cast=int
-    )
+    access_token_expire_minutes: int = 30
 
     # API Keys
-    api_key_expire_days: int = config("API_KEY_EXPIRE_DAYS", default=365, cast=int)
+    api_key_expire_days: int = 365
 
-    # CORS
-    allowed_origins: list = config(
-        "ALLOWED_ORIGINS", default="*", cast=lambda v: v.split(",")
-    )
+    # CORS - This will now properly handle comma-separated values from .env
+    allowed_origins: List[str] = Field(default=["*"])
 
     # Rate Limiting
-    rate_limit_requests: int = config("RATE_LIMIT_REQUESTS", default=100, cast=int)
-    rate_limit_window: int = config(
-        "RATE_LIMIT_WINDOW", default=60, cast=int
-    )  # seconds
-
-    # @validator("secret_key")
-    # def validate_secret_key(cls, v):
-    #     if len(v) < 32:
-    #         raise ValueError("SECRET_KEY must be at least 32 characters long")
-    #     return v
-
-    class Config:
-        env_file = ".env"
+    rate_limit_requests: int = 100
+    rate_limit_window: int = 60
 
 
 settings = Settings()

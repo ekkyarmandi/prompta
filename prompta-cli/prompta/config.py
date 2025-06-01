@@ -8,7 +8,7 @@ from typing import Any, Dict, Optional
 
 import keyring
 import yaml
-from decouple import Config as DecoupleConfig, RepositoryEnv
+from dotenv import dotenv_values, load_dotenv
 
 
 def _is_in_virtual_env() -> bool:
@@ -224,7 +224,7 @@ class ConfigManager:
         """Get configuration from environment variables."""
         config = Config()
 
-        # Create decouple config that looks for .env files in current directory
+        # Create dotenv config that looks for .env files in current directory
         env_config = self._create_env_config()
 
         # API configuration
@@ -253,16 +253,44 @@ class ConfigManager:
         return config
 
     def _create_env_config(self):
-        """Create a decouple config that looks for .env files in current directory."""
+        """Create a dotenv config that looks for .env files in current directory."""
         # Look for .env file in current working directory first
         cwd_env_file = Path.cwd() / ".env"
         if cwd_env_file.exists():
-            return DecoupleConfig(RepositoryEnv(str(cwd_env_file)))
+            # Load the .env file and return a config function
+            env_values = dotenv_values(cwd_env_file)
 
-        # Fallback to default decouple behavior using environment variables only
-        from decouple import config as default_config
+            def env_config(key: str, default=None, cast=str):
+                """Get value from .env file or environment with type casting."""
+                # Priority: environment variable > .env file > default
+                value = os.getenv(key) or env_values.get(key, default)
+                if value == default:
+                    return default
+                if cast == bool:
+                    return str(value).lower() in ("true", "1", "yes", "on")
+                elif cast == int:
+                    return int(value)
+                elif cast == float:
+                    return float(value)
+                return cast(value)
 
-        return default_config
+            return env_config
+
+        # Fallback to environment variables only
+        def env_config(key: str, default=None, cast=str):
+            """Get value from environment variables with type casting."""
+            value = os.getenv(key, default)
+            if value == default:
+                return default
+            if cast == bool:
+                return str(value).lower() in ("true", "1", "yes", "on")
+            elif cast == int:
+                return int(value)
+            elif cast == float:
+                return float(value)
+            return cast(value)
+
+        return env_config
 
     def _merge_configs(self, other_config: Config) -> None:
         """Merge another configuration with the current one."""
