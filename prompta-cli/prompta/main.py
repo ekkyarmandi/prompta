@@ -21,12 +21,7 @@ from .commands.prompts import (
 )
 
 # Project management commands
-from .commands.project import create_project_command
-from .commands.server import (
-    runserver_command,
-    migrate_command,
-    createsuperuser_command,
-)
+from .commands.project import init_command
 
 
 @click.group(invoke_without_command=True)
@@ -54,7 +49,12 @@ def cli(ctx: click.Context, version: bool) -> None:
 cli.add_command(auth_group, name="auth")
 cli.add_command(prompts_group, name="prompts")
 
-# Add top-level convenience commands
+# Auth related commands
+cli.add_command(whoami_command, name="whoami")
+cli.add_command(login_command, name="login")
+cli.add_command(logout_command, name="logout")
+
+# Prompts related commands
 cli.add_command(list_command, name="list")
 cli.add_command(get_command, name="get")
 cli.add_command(save_command, name="save")
@@ -68,15 +68,7 @@ cli.add_command(download_directory_command, name="download-directory")
 cli.add_command(download_tags_command, name="download-tags")
 
 # Project related commands
-cli.add_command(create_project_command, name="createproject")
-cli.add_command(runserver_command, name="runserver")
-cli.add_command(migrate_command, name="migrate")
-cli.add_command(createsuperuser_command, name="createsuperuser")
-
-# Auth related commands
-cli.add_command(login_command, name="login")
-cli.add_command(logout_command, name="logout")
-cli.add_command(whoami_command, name="whoami")
+cli.add_command(init_command, name="init")
 
 
 if __name__ == "__main__":

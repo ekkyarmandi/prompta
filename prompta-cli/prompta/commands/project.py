@@ -49,14 +49,14 @@ def _get_template_path() -> Path:
 # ---------------------------------------------------------------------------
 
 
-@click.command("createproject")
-@click.argument("name")
+@click.command("init")
+@click.argument("name", default="prompta", required=False)
 @click.option(
     "--force",
     is_flag=True,
     help="Overwrite destination if it already exists (dangerous).",
 )
-def create_project_command(name: str, force: bool) -> None:  # pragma: no cover
+def init_command(name: str, force: bool) -> None:  # pragma: no cover
     """Scaffold a new Prompta backend project in the *NAME* directory."""
 
     project_dir = Path(name).expanduser().resolve()
@@ -89,22 +89,15 @@ def create_project_command(name: str, force: bool) -> None:  # pragma: no cover
         pass  # Git not available – silently ignore
 
     click.echo("✅ Project created successfully!")
-    click.echo()
-    click.echo("🚀 Choose how to run your project:")
-    click.echo()
-    click.echo("📋 Option 1: Local Development")
+    click.echo("🐳 Docker")
     click.echo(f"   cd {project_dir.name}")
-    click.echo("   cp .env.example .env   # copy environment config")
-    click.echo("   prompta migrate        # create database")
-    click.echo("   prompta runserver      # start dev server on http://127.0.0.1:8000")
+    click.echo("   cp .env.example .env")
+    click.echo("   docker-compose up -d --build")
     click.echo()
-    click.echo("🐳 Option 2: Docker (Recommended for Production)")
+    click.echo("🔧 Local Development")
     click.echo(f"   cd {project_dir.name}")
-    click.echo("   cp .env.example .env   # copy environment config")
-    click.echo("   docker-compose up -d   # start with PostgreSQL database")
+    click.echo("   cp .env.example .env")
+    click.echo("   alembic revision --autogenerate -m 'create table'")
+    click.echo("   alembic upgrade head")
+    click.echo("   uvicorn app.main:app --reload")
     click.echo("   # Access your app at http://localhost:8000")
-    click.echo()
-    click.echo("💡 The Docker setup includes:")
-    click.echo("   • PostgreSQL database with health checks")
-    click.echo("   • Automatic database migrations")
-    click.echo("   • Production-ready container configuration")

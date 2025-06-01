@@ -5,7 +5,7 @@ interface.
 """
 
 # Keep the semantic version in sync with pyproject.toml
-__version__: str = "0.2.9"
+__version__: str = "0.2.10"
 
 # Metadata
 __author__: str = "Ekky Armandi"
