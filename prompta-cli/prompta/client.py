@@ -389,6 +389,14 @@ class PromptaClient:
         except httpx.RequestError as e:
             raise PromptaAPIError(f"Request failed: {str(e)}")
 
+    def get_user_info(self) -> Dict[str, Any]:
+        """Get current user information.
+
+        Returns:
+            User information including email, username, etc.
+        """
+        return self._make_request("GET", "/auth/me")
+
     def download_prompts(
         self,
         project_name: Optional[str] = None,

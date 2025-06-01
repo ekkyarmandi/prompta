@@ -87,9 +87,7 @@ def status_command():
         click.echo("API key is configured and ready to use.")
     else:
         click.echo("❌ Not authenticated")
-        click.echo(
-            "No API key found. Run 'Prompta auth init' to set up authentication."
-        )
+        click.echo("No API key found. Run 'prompta login' to set up authentication.")
 
 
 @auth_group.command("set-api-key")
@@ -114,3 +112,31 @@ def set_api_key_command(api_key: str):
     except PromptaAPIError as e:
         click.echo(f"❌ {e}", err=True)
         raise click.ClickException("API connection failed")
+
+
+@auth_group.command("whoami")
+def whoami_command():
+    """Show current user information."""
+    try:
+        config_manager = ConfigManager()
+        config_manager.load()
+
+        api_key = config_manager.get_api_key()
+        if not api_key:
+            raise click.ClickException(
+                "Authentication required. Run 'prompta login' to authenticate."
+            )
+
+        client = PromptaClient(api_key=api_key, config=config_manager.config)
+        user_info = client.get_user_info()
+
+        click.echo(
+            f"📧 Email: {user_info.get('email', 'N/A')}, 👤 Username: {user_info.get('username', 'N/A')}, 📅 Member since: {user_info.get('created_at', 'N/A') if user_info.get('created_at') else 'N/A'}"
+        )
+
+    except AuthenticationError as e:
+        click.echo(f"❌ Authentication failed: {e}", err=True)
+        raise click.ClickException("Authentication failed.")
+    except PromptaAPIError as e:
+        click.echo(f"❌ API error: {e}", err=True)
+        raise click.ClickException("Failed to get user information")

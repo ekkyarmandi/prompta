@@ -37,8 +37,7 @@ RUN apt-get update \
 COPY requirements.txt ./
 
 RUN pip install --no-cache-dir --upgrade pip uv \
-    && uv pip install --system -r requirements.txt \
-    && uv pip cache prune  # keep final image small
+    && uv pip install --system -r requirements.txt
 
 # ---------------------------------------------------------------------------
 # Copy the rest of the application source tree
