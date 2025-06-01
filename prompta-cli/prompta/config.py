@@ -1,23 +1,11 @@
 """Configuration management for Prompta CLI."""
 
 import os
-import sys
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, Optional
 
-import keyring
-import yaml
-from dotenv import dotenv_values, load_dotenv
-
-
-def _is_in_virtual_env() -> bool:
-    """Check if Python is running in a virtual environment."""
-    return (
-        hasattr(sys, "real_prefix")  # virtualenv
-        or (hasattr(sys, "base_prefix") and sys.base_prefix != sys.prefix)  # venv
-        or os.getenv("VIRTUAL_ENV") is not None  # environment variable
-    )
+from dotenv import dotenv_values
 
 
 @dataclass
@@ -44,7 +32,6 @@ class Config:
     cache_directory: str = "~/.prompta/cache"
 
     # Security Configuration
-    use_keyring: bool = True
     verify_ssl: bool = True
 
     @classmethod
@@ -93,8 +80,6 @@ class Config:
         # Security configuration
         if "security" in data:
             security = data["security"]
-            if "use_keyring" in security:
-                config.use_keyring = security["use_keyring"]
             if "verify_ssl" in security:
                 config.verify_ssl = security["verify_ssl"]
 
@@ -123,102 +108,26 @@ class Config:
                 "directory": self.cache_directory,
             },
             "security": {
-                "use_keyring": self.use_keyring,
                 "verify_ssl": self.verify_ssl,
             },
         }
 
 
 class ConfigManager:
-    """Manages configuration loading, saving, and API key storage."""
+    """Manages configuration loading with simplified project-based approach."""
 
-    def __init__(self, config_dir: Optional[Path] = None):
-        """Initialize ConfigManager.
-
-        Args:
-            config_dir: Custom configuration directory. If None, uses default.
-        """
-        self.config_dir = config_dir or self._get_config_dir()
+    def __init__(self):
+        """Initialize ConfigManager."""
         self.config = Config()
-        self.config_file = self.config_dir / "config.yaml"
-        self.global_config_file = Path.home() / ".promptarc"
-
-    def _get_config_dir(self) -> Path:
-        """Get configuration directory from environment or default."""
-        config_dir = os.getenv("PROMPTA_CONFIG_DIR")
-        if config_dir:
-            return Path(config_dir)
-        return Path.home() / ".prompta"
-
-    def ensure_global_config(self) -> None:
-        """Ensure ~/.promptarc exists if prompta is installed outside virtual environment."""
-        if not _is_in_virtual_env() and not self.global_config_file.exists():
-            self.create_default_global_config()
-
-    def create_default_global_config(self) -> None:
-        """Create default ~/.promptarc configuration file."""
-        default_config = {
-            "api": {"url": "http://localhost:8000", "timeout": 30, "verify_ssl": True},
-            "auth": {
-                # Note: API key should be set via environment variables or prompta auth commands
-                # "api_key": "your-api-key-here"  # Not recommended for security
-            },
-            "output": {
-                "format": "table",  # table, json, yaml
-                "color": True,
-                "verbose": False,
-            },
-            "cache": {"enabled": True, "ttl": 300, "directory": "~/.prompta/cache"},
-        }
-
-        try:
-            with open(self.global_config_file, "w") as f:
-                yaml.dump(default_config, f, default_flow_style=False, sort_keys=False)
-            print(f"✅ Created global configuration file at {self.global_config_file}")
-        except Exception as e:
-            print(f"❌ Failed to create global configuration file: {e}")
 
     def load(self) -> None:
-        """Load configuration with priority: env vars > .env file > global config > defaults."""
+        """Load configuration with priority: env vars > .env file > defaults."""
         # 1. Start with default config
         self.config = Config()
 
-        # 2. Load from global config (~/.promptarc) if no local .env file
-        cwd_env_file = Path.cwd() / ".env"
-        if not cwd_env_file.exists() and self.global_config_file.exists():
-            try:
-                with open(self.global_config_file) as f:
-                    global_data = yaml.safe_load(f) or {}
-                self.config = Config.from_dict(global_data)
-
-                # Also load global API key if present (not recommended but supported)
-                if "auth" in global_data and "api_key" in global_data["auth"]:
-                    os.environ["PROMPTA_API_KEY"] = global_data["auth"]["api_key"]
-
-            except Exception as e:
-                # If global config is corrupted, continue with defaults
-                print(f"Warning: Could not load global config: {e}")
-
-        # 3. Load from local config directory (~/.prompta/config.yaml)
-        if self.config_file.exists():
-            try:
-                with open(self.config_file) as f:
-                    data = yaml.safe_load(f) or {}
-                local_config = Config.from_dict(data)
-                self._merge_configs(local_config)
-            except Exception as e:
-                print(f"Warning: Could not load local config: {e}")
-
-        # 4. Override with environment variables and .env files (highest priority)
+        # 2. Override with environment variables and .env files (highest priority)
         env_config = self._get_config_from_env()
         self._merge_configs(env_config)
-
-    def save(self) -> None:
-        """Save configuration to file."""
-        self.config_dir.mkdir(parents=True, exist_ok=True)
-
-        with open(self.config_file, "w") as f:
-            yaml.dump(self.config.to_dict(), f, default_flow_style=False)
 
     def _get_config_from_env(self) -> Config:
         """Get configuration from environment variables."""
@@ -314,7 +223,7 @@ class ConfigManager:
             self.config.cache_ttl = other_config.cache_ttl
 
     def get_api_key(self, explicit_key: Optional[str] = None) -> Optional[str]:
-        """Get API key with priority: explicit > env var > .env file > keyring.
+        """Get API key with priority: explicit > env var > .env file.
 
         Args:
             explicit_key: Explicitly provided API key (highest priority)
@@ -341,30 +250,4 @@ class ConfigManager:
             # .env file might not exist or be readable
             pass
 
-        # 4. Keyring storage (if enabled)
-        if self.config.use_keyring:
-            try:
-                return keyring.get_password("prompta", "api_key")
-            except Exception:
-                # Keyring might not be available on all systems
-                return None
-
         return None
-
-    def set_api_key(self, api_key: str) -> None:
-        """Store API key in keyring.
-
-        Args:
-            api_key: API key to store
-        """
-        if self.config.use_keyring:
-            keyring.set_password("prompta", "api_key", api_key)
-
-    def clear_api_key(self) -> None:
-        """Clear API key from keyring."""
-        if self.config.use_keyring:
-            try:
-                keyring.delete_password("prompta", "api_key")
-            except keyring.errors.PasswordDeleteError:
-                # Key doesn't exist, that's fine
-                pass

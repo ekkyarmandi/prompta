@@ -4,7 +4,6 @@ import click
 
 from . import __version__
 
-# from .commands.auth import auth_group, whoami_command, login_command, logout_command
 # from .config import ConfigManager
 # from .commands.prompts import (
 #     prompts_group,
@@ -38,21 +37,13 @@ def cli(ctx: click.Context, version: bool) -> None:
         click.echo(f"prompta version {__version__}")
         return
 
-    # Ensure global config is created if needed (only when installed outside virtual environment)
-    # config_manager = ConfigManager()
-    # config_manager.ensure_global_config()
-    # if ctx.invoked_subcommand is None:
-    #     click.echo(ctx.get_help())
+    if ctx.invoked_subcommand is None:
+        click.echo(ctx.get_help())
 
 
 # Add command groups
 # cli.add_command(auth_group, name="auth")
 # cli.add_command(prompts_group, name="prompts")
-
-# Auth related commands
-# cli.add_command(whoami_command, name="whoami")
-# cli.add_command(login_command, name="login")
-# cli.add_command(logout_command, name="logout")
 
 # Prompts related commands
 # cli.add_command(list_command, name="list")

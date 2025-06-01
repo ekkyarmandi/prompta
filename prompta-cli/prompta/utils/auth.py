@@ -28,7 +28,8 @@ def get_authenticated_client(api_key: Optional[str] = None) -> PromptaClient:
 
         if not api_key:
             raise AuthenticationError(
-                "No API key found. Run 'Prompta auth init' to set up authentication."
+                "No API key found. Set PROMPTA_API_KEY environment variable, "
+                "add it to .env file, or use --api-key flag."
             )
 
     return PromptaClient(api_key=api_key, config=config_manager.config)

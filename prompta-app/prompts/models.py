@@ -31,7 +31,9 @@ class Project(Base):
 
     # Relationships
     user = relationship("User", back_populates="projects")
-    prompts = relationship("Prompt", back_populates="project", cascade="all, delete-orphan")
+    prompts = relationship(
+        "Prompt", back_populates="project", cascade="all, delete-orphan"
+    )
 
     # Composite index for user + name uniqueness
     __table_args__ = (
@@ -49,11 +51,14 @@ class Prompt(Base):
 
     id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     user_id = Column(String(36), ForeignKey("users.id"), nullable=False)
-    project_id = Column(String(36), ForeignKey("projects.id"), nullable=True)  # Optional project association
+    project_id = Column(
+        String(36), ForeignKey("projects.id"), nullable=True
+    )  # Optional project association
     name = Column(String(255), nullable=False, index=True)
     description = Column(Text, nullable=True)
     location = Column(String(500), nullable=False)  # File path
     tags = Column(JSON, default=list)  # List of tags
+    is_public = Column(Boolean, default=False, nullable=False)  # Public visibility
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     current_version_id = Column(
@@ -79,10 +84,11 @@ class Prompt(Base):
         Index("ix_prompts_location", "location"),
         Index("ix_prompts_updated", "updated_at"),
         Index("ix_prompts_project", "project_id"),
+        Index("ix_prompts_public", "is_public"),
     )
 
     def __repr__(self):
-        return f"<Prompt(name='{self.name}', user_id='{self.user_id}')>"
+        return f"<Prompt(name='{self.name}', user_id='{self.user_id}', is_public={self.is_public})>"
 
 
 class PromptVersion(Base):

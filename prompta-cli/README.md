@@ -2,6 +2,24 @@
 
 Prompta is a powerful command-line tool for creating and managing self-hosted prompt management systems.
 
+## Configuration
+
+Configure the CLI using environment variables or a `.env` file in your project:
+
+```bash
+# Required: API key for authentication
+PROMPTA_API_KEY=your-api-key-here
+
+# Optional: API server URL (defaults to localhost:8000)
+PROMPTA_API_URL=http://localhost:8000
+```
+
+All prompt commands require a valid API key through one of these methods:
+
+1. `PROMPTA_API_KEY` environment variable
+2. `PROMPTA_API_KEY` in project's `.env` file
+3. `--api-key` flag with individual commands
+
 ## Project Management
 
 Create and manage Prompta API server projects:
