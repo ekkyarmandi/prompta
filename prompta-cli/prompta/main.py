@@ -30,7 +30,7 @@ from .commands.project import init_command
 def cli(ctx: click.Context, version: bool) -> None:
     """Prompta - A powerful CLI tool for managing and versioning prompts across projects.
 
-    Prompta helps developers manage, version, and sync prompt files (like .cursorrules)
+    Prompta helps developers manage, version, and sync prompt files
     across multiple projects with a simple command-line interface.
     """
     if version:

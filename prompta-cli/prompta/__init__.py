@@ -1,6 +1,6 @@
 """Prompta CLI core package.
 
-This directory contains the entire implementation of the **Prompta** command-line
+This directory contains the entire implementation of the Prompta command-line
 interface.
 """
 

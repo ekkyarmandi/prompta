@@ -6,10 +6,7 @@ Prompta is a powerful command-line tool for creating and managing self-hosted pr
 
 Create and manage Prompta API server projects:
 
-- **`prompta createproject <name>`** - Create a new Prompta API server project
-- **`prompta migrate`** - Run database migrations (convenience wrapper around Alembic)
-- **`prompta runserver`** - Start development server (convenience wrapper around Uvicorn)
-- **`prompta createsuperuser`** - Create admin users interactively
+- **`prompta init`** - Create a new Prompta API server project
 
 ## Prompt Management
 
