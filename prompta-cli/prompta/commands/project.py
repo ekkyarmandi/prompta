@@ -57,7 +57,7 @@ def _get_template_path() -> Path:
     help="Overwrite destination if it already exists (dangerous).",
 )
 def init_command(name: str, force: bool) -> None:  # pragma: no cover
-    """Scaffold a new Prompta backend project in the *NAME* directory."""
+    """Scaffold a new Prompta backend project in the current directory."""
 
     project_dir = Path(name).expanduser().resolve()
 
