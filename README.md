@@ -37,8 +37,8 @@ The first time this runs Docker will:
    build installs Python dependencies via the ultra-fast
    [`uv`](https://github.com/astral-sh/uv) installer and therefore completes much
    quicker than a traditional `pip install`.
-2. Start a PostgreSQL 15 container initialised with database *prompta_db* and
-   user/password *prompta*/*prompta*.
+2. Start a PostgreSQL 14 container initialised with database _prompta_db_ and
+   user/password _prompta_/_prompta_.
 3. Apply Alembic migrations automatically on container start-up so the schema is
    always up-to-date.
 
@@ -392,4 +392,4 @@ This API is ready for:
 - Export/import functionality
 - Integration with external tools
 
-The flexible authentication system supports both JWT tokens (for web interfaces) and API keys (for CLI tools), making it perfect for the complete Ruru prompt management ecosystem.
+The flexible authentication system supports both JWT tokens (for web interfaces) and API keys (for CLI tools), making it perfect for the complete PROMPTA prompt management ecosystem.

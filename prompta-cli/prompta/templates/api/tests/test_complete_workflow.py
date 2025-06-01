@@ -26,7 +26,7 @@ def print_step(step, description):
 
 def main():
     """Run complete workflow test"""
-    print_section("Prompta API - COMPLETE WORKFLOW TEST")
+    print_section("PROMPTA API - COMPLETE WORKFLOW TEST")
 
     # Step 1: User Registration
     print_step(1, "User Registration")
