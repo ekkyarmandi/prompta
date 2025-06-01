@@ -21,6 +21,33 @@ A FastAPI-based authentication and prompt management API with JWT and API key su
 - Python 3.10+
 - uv (for package management)
 
+### Running with Docker (recommended for production)
+
+If you have Docker and Docker Compose installed you can spin up a fully-featured
+stack (FastAPI application + PostgreSQL database) with a single command:
+
+```bash
+# In the project root (where docker-compose.yml lives)
+docker compose up --build
+```
+
+The first time this runs Docker will:
+
+1. Build an image for the FastAPI application using the provided `Dockerfile`. The
+   build installs Python dependencies via the ultra-fast
+   [`uv`](https://github.com/astral-sh/uv) installer and therefore completes much
+   quicker than a traditional `pip install`.
+2. Start a PostgreSQL 15 container initialised with database *prompta_db* and
+   user/password *prompta*/*prompta*.
+3. Apply Alembic migrations automatically on container start-up so the schema is
+   always up-to-date.
+
+After the stack is ready the API is available at `http://localhost:8000`.
+
+Hot-reloading for local development is still possible; just continue to run the
+application directly with `uv run uvicorn …` during coding sessions and switch
+to Docker for staging/production.
+
 ### Installation
 
 1. Install dependencies:
