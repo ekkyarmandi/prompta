@@ -32,6 +32,53 @@ if config.config_file_name is not None:
 # for 'autogenerate' support
 target_metadata = Base.metadata
 
+# Define table creation order to handle circular dependencies
+TABLE_ORDER = [
+    "users",  # No dependencies
+    "projects",  # Depends on users
+    "api_keys",  # Depends on users
+    "prompts",  # Depends on users and projects (without current_version_id FK)
+    "prompt_versions",  # Depends on prompts
+]
+
+
+def include_object(object, name, type_, reflected, compare_to):
+    """Custom include_object hook to handle table ordering and circular dependencies."""
+    return True
+
+
+def process_revision_directives(context, revision, directives):
+    """Custom hook to reorder table operations to handle dependencies."""
+    if getattr(context.config.cmd_opts, "autogenerate", False):
+        script = directives[0]
+        if script.upgrade_ops:
+            # Separate create_table and other operations
+            create_ops = []
+            other_ops = []
+
+            for op in script.upgrade_ops.ops:
+                if (
+                    hasattr(op, "table_name")
+                    and op.__class__.__name__ == "CreateTableOp"
+                ):
+                    create_ops.append(op)
+                else:
+                    other_ops.append(op)
+
+            # Sort create_table operations by our defined order
+            def get_table_order(op):
+                table_name = getattr(op, "table_name", "")
+                try:
+                    return TABLE_ORDER.index(table_name)
+                except ValueError:
+                    return 999  # Put unknown tables at the end
+
+            create_ops.sort(key=get_table_order)
+
+            # Rebuild operations list with proper order
+            script.upgrade_ops.ops = create_ops + other_ops
+
+
 # other values from the config, defined by the needs of env.py,
 # can be acquired:
 # my_important_option = config.get_main_option("my_important_option")
@@ -56,6 +103,8 @@ def run_migrations_offline() -> None:
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
+        include_object=include_object,
+        process_revision_directives=process_revision_directives,
     )
 
     with context.begin_transaction():
@@ -76,7 +125,12 @@ def run_migrations_online() -> None:
     )
 
     with connectable.connect() as connection:
-        context.configure(connection=connection, target_metadata=target_metadata)
+        context.configure(
+            connection=connection,
+            target_metadata=target_metadata,
+            include_object=include_object,
+            process_revision_directives=process_revision_directives,
+        )
 
         with context.begin_transaction():
             context.run_migrations()

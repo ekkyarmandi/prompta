@@ -61,9 +61,7 @@ class Prompt(Base):
     is_public = Column(Boolean, default=False, nullable=False)  # Public visibility
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    current_version_id = Column(
-        String(36), ForeignKey("prompt_versions.id"), nullable=True
-    )
+    current_version_id = Column(String(36), nullable=True)
 
     # Relationships
     user = relationship("User", back_populates="prompts")
@@ -74,9 +72,8 @@ class Prompt(Base):
         cascade="all, delete-orphan",
         foreign_keys="PromptVersion.prompt_id",
     )
-    current_version = relationship(
-        "PromptVersion", foreign_keys=[current_version_id], post_update=True
-    )
+    # Note: current_version relationship will be managed through current_version_id
+    # without foreign key constraint to avoid circular dependency
 
     # Composite index for user + name uniqueness
     __table_args__ = (
@@ -89,6 +86,22 @@ class Prompt(Base):
 
     def __repr__(self):
         return f"<Prompt(name='{self.name}', user_id='{self.user_id}', is_public={self.is_public})>"
+
+    @property
+    def current_version(self):
+        """Get the current version of this prompt."""
+        if not self.current_version_id:
+            return None
+        from sqlalchemy.orm import object_session
+
+        session = object_session(self)
+        if session:
+            return (
+                session.query(PromptVersion)
+                .filter_by(id=self.current_version_id)
+                .first()
+            )
+        return None
 
 
 class PromptVersion(Base):
