@@ -109,6 +109,7 @@ class PromptCreate(BaseModel):
     tags: List[str] = Field(default_factory=list)
     content: str = Field(..., min_length=1)  # Initial version content
     commit_message: Optional[str] = None
+    is_public: bool = False
 
     @validator("name")
     def validate_name(cls, v):
@@ -143,6 +144,7 @@ class PromptResponse(BaseModel):
     project_id: Optional[str]
     project: Optional[ProjectResponse]
     tags: List[str]
+    is_public: bool
     created_at: datetime
     updated_at: datetime
     current_version: Optional[PromptVersionResponse]
@@ -157,6 +159,7 @@ class PromptUpdate(BaseModel):
     location: Optional[str] = Field(None, min_length=1, max_length=500)
     project_id: Optional[str] = None
     tags: Optional[List[str]] = None
+    is_public: Optional[bool] = None
 
     @validator("name")
     def validate_name(cls, v):
@@ -227,7 +230,9 @@ class PromptDownloadParams(BaseModel):
     project_name: Optional[str] = None
     directory: Optional[str] = None
     tags: Optional[List[str]] = None
-    include_content: bool = Field(default=True, description="Include prompt content in response")
+    include_content: bool = Field(
+        default=True, description="Include prompt content in response"
+    )
     format: str = Field(default="json", description="Response format: json, zip")
 
     @validator("tags")

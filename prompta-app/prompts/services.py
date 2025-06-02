@@ -6,9 +6,9 @@ import math
 
 from .models import Prompt, PromptVersion, Project
 from .schemas import (
-    PromptCreate, 
-    PromptUpdate, 
-    PromptVersionCreate, 
+    PromptCreate,
+    PromptUpdate,
+    PromptVersionCreate,
     PromptSearchParams,
     PromptDownloadParams,
     ProjectCreate,
@@ -49,7 +49,9 @@ class ProjectService:
         return db_project
 
     @staticmethod
-    def get_project_by_id(db: Session, user: User, project_id: str) -> Optional[Project]:
+    def get_project_by_id(
+        db: Session, user: User, project_id: str
+    ) -> Optional[Project]:
         """Get a project by ID for a specific user"""
         return (
             db.query(Project)
@@ -68,13 +70,13 @@ class ProjectService:
 
     @staticmethod
     def list_projects(
-        db: Session, 
-        user: User, 
+        db: Session,
+        user: User,
         query: Optional[str] = None,
         tags: Optional[List[str]] = None,
         directory: Optional[str] = None,
-        page: int = 1, 
-        page_size: int = 20
+        page: int = 1,
+        page_size: int = 20,
     ) -> Tuple[List[Project], int]:
         """List projects with search and pagination"""
         db_query = db.query(Project).filter(
@@ -93,6 +95,7 @@ class ProjectService:
 
         if tags:
             from sqlalchemy import text
+
             for tag in tags:
                 db_query = db_query.filter(
                     text(f"json_extract(tags, '$') LIKE '%\"{tag}\"%'")
@@ -178,6 +181,28 @@ class PromptService:
     """Service class for prompt-related operations"""
 
     @staticmethod
+    def get_prompt_public_or_private(
+        db: Session, prompt_id: str, user: Optional[User] = None
+    ) -> Optional[Prompt]:
+        """
+        Get a prompt by ID if it is public, or if the user is the owner.
+        If the prompt is private and user is not the owner, return None.
+        """
+        prompt = (
+            db.query(Prompt)
+            .options(joinedload(Prompt.project), joinedload(Prompt.current_version))
+            .filter(Prompt.id == prompt_id)
+            .first()
+        )
+        if not prompt:
+            return None
+        if prompt.is_public:
+            return prompt
+        if user and prompt.user_id == user.id:
+            return prompt
+        return None
+
+    @staticmethod
     def create_prompt(db: Session, user: User, prompt_data: PromptCreate) -> Prompt:
         """Create a new prompt with initial version"""
         # Check if prompt with same name already exists for user
@@ -194,7 +219,9 @@ class PromptService:
         if prompt_data.project_id:
             project = ProjectService.get_project_by_id(db, user, prompt_data.project_id)
             if not project:
-                raise ValueError(f"Project with ID '{prompt_data.project_id}' not found")
+                raise ValueError(
+                    f"Project with ID '{prompt_data.project_id}' not found"
+                )
 
         # Create the prompt
         db_prompt = Prompt(
@@ -204,6 +231,9 @@ class PromptService:
             description=prompt_data.description,
             location=prompt_data.location,
             tags=prompt_data.tags,
+            is_public=(
+                prompt_data.is_public if hasattr(prompt_data, "is_public") else False
+            ),
         )
 
         db.add(db_prompt)
@@ -301,7 +331,9 @@ class PromptService:
             query = query.filter(Prompt.project_id == search_params.project_id)
 
         if search_params.project_name:
-            query = query.join(Project).filter(Project.name == search_params.project_name)
+            query = query.join(Project).filter(
+                Project.name == search_params.project_name
+            )
 
         if search_params.directory:
             # Filter by project directory or prompt location containing directory
@@ -359,7 +391,9 @@ class PromptService:
         if prompt_data.project_id:
             project = ProjectService.get_project_by_id(db, user, prompt_data.project_id)
             if not project:
-                raise ValueError(f"Project with ID '{prompt_data.project_id}' not found")
+                raise ValueError(
+                    f"Project with ID '{prompt_data.project_id}' not found"
+                )
 
         # Update fields
         if prompt_data.name is not None:
@@ -372,6 +406,8 @@ class PromptService:
             prompt.project_id = prompt_data.project_id
         if prompt_data.tags is not None:
             prompt.tags = prompt_data.tags
+        if prompt_data.is_public is not None:
+            prompt.is_public = prompt_data.is_public
 
         db.commit()
         db.refresh(prompt)
@@ -561,7 +597,9 @@ class PromptService:
 
         # Apply filters
         if download_params.project_name:
-            query = query.join(Project).filter(Project.name == download_params.project_name)
+            query = query.join(Project).filter(
+                Project.name == download_params.project_name
+            )
             filters_applied["project_name"] = download_params.project_name
 
         if download_params.directory:
@@ -576,6 +614,7 @@ class PromptService:
 
         if download_params.tags:
             from sqlalchemy import text
+
             for tag in download_params.tags:
                 query = query.filter(
                     text(f"json_extract(tags, '$') LIKE '%\"{tag}\"%'")

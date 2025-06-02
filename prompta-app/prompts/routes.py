@@ -114,17 +114,25 @@ async def get_prompt_by_location(
     return prompt
 
 
+from typing import Union
+
+
 @router.get("/{prompt_id}", response_model=PromptResponse)
 async def get_prompt(
     prompt_id: str,
-    current_user: User = Depends(get_current_user_flexible),
     db: Session = Depends(get_db),
+    current_user: Union[User, None] = Depends(get_current_user_flexible),
 ):
-    """Get a specific prompt by ID"""
-    prompt = PromptService.get_prompt_by_id(db, current_user, prompt_id)
+    """
+    Get a specific prompt by ID.
+    - If the prompt is public, anyone can access.
+    - If the prompt is private, only the owner (authenticated) can access.
+    """
+    prompt = PromptService.get_prompt_public_or_private(db, prompt_id, current_user)
     if not prompt:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Prompt not found"
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Prompt not found or not accessible",
         )
     return prompt
 
