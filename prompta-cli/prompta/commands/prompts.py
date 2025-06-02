@@ -5,7 +5,12 @@ from typing import List, Optional
 
 import click
 
-from ..exceptions import AuthenticationError, NotFoundError, PromptaAPIError
+from ..exceptions import (
+    AuthenticationError,
+    NotFoundError,
+    PromptaAPIError,
+    ValidationError,
+)
 from ..utils.auth import get_authenticated_client
 
 
@@ -15,7 +20,7 @@ def prompts_group():
     pass
 
 
-@prompts_group.command("list")
+@click.command()
 @click.option("--tags", help="Filter by tags (comma-separated)")
 @click.option("--location", help="Filter by location")
 @click.option("--api-key", help="API key to use for this request")
@@ -54,18 +59,34 @@ def list_command(tags: Optional[str], location: Optional[str], api_key: Optional
         raise click.ClickException("API request failed")
 
 
-@prompts_group.command("get")
-@click.argument("name")
+@click.command()
+@click.argument("identifier")
 @click.option("--output", "-o", help="Output file path")
+@click.option(
+    "--project-id", help="Project ID (required if multiple prompts have the same name)"
+)
 @click.option("--api-key", help="API key to use for this request")
-def get_command(name: str, output: Optional[str], api_key: Optional[str]):
+def get_command(
+    identifier: str,
+    output: Optional[str],
+    project_id: Optional[str],
+    api_key: Optional[str],
+):
     """Download a prompt to a local file."""
     try:
         client = get_authenticated_client(api_key)
-        prompt = client.get_prompt_by_name(name)
+        prompt = client.get_prompt(identifier, project_id)
 
         # Determine output path
-        output_path = Path(output) if output else Path(prompt["location"])
+        if output:
+            output_path = Path(output)
+        else:
+            # Handle tilde replacement for location
+            location = prompt["location"]
+            if location.startswith("~"):
+                # Remove tilde and replace with ./
+                location = "./" + location[1:].lstrip("/")
+            output_path = Path(location)
 
         # Create parent directories if they don't exist
         output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -75,11 +96,14 @@ def get_command(name: str, output: Optional[str], api_key: Optional[str]):
         with open(output_path, "w") as f:
             f.write(content)
 
-        click.echo(f"✅ Downloaded '{name}' to {output_path}")
+        click.echo(f"✅ Downloaded '{identifier}' to {output_path}")
 
     except NotFoundError as e:
         click.echo(f"❌ {e}", err=True)
         raise click.ClickException("Prompt not found")
+    except ValidationError as e:
+        click.echo(f"❌ {e}", err=True)
+        raise click.ClickException("Multiple prompts found")
     except AuthenticationError as e:
         click.echo(f"❌ {e}", err=True)
         raise click.ClickException("Authentication failed")
@@ -88,15 +112,22 @@ def get_command(name: str, output: Optional[str], api_key: Optional[str]):
         raise click.ClickException("API request failed")
 
 
-@prompts_group.command("show")
-@click.argument("name")
+@click.command()
+@click.argument("identifier")
 @click.option(
     "--version", "-v", type=int, help="Show specific version (defaults to current)"
 )
 @click.option("--no-syntax", is_flag=True, help="Disable syntax highlighting")
+@click.option(
+    "--project-id", help="Project ID (required if multiple prompts have the same name)"
+)
 @click.option("--api-key", help="API key to use for this request")
 def show_command(
-    name: str, version: Optional[int], no_syntax: bool, api_key: Optional[str]
+    identifier: str,
+    version: Optional[int],
+    no_syntax: bool,
+    project_id: Optional[str],
+    api_key: Optional[str],
 ):
     """Display prompt content in the terminal."""
     try:
@@ -105,7 +136,7 @@ def show_command(
         from rich.panel import Panel
 
         client = get_authenticated_client(api_key)
-        prompt = client.get_prompt_by_name(name)
+        prompt = client.get_prompt(identifier, project_id)
 
         # Get the content to display
         if version is not None:
@@ -116,7 +147,8 @@ def show_command(
             )
             if not version_data:
                 click.echo(
-                    f"❌ Version {version} not found for prompt '{name}'", err=True
+                    f"❌ Version {version} not found for prompt '{identifier}'",
+                    err=True,
                 )
                 raise click.ClickException("Version not found")
             content = version_data["content"]
@@ -193,6 +225,9 @@ def show_command(
     except NotFoundError as e:
         click.echo(f"❌ {e}", err=True)
         raise click.ClickException("Prompt not found")
+    except ValidationError as e:
+        click.echo(f"❌ {e}", err=True)
+        raise click.ClickException("Multiple prompts found")
     except AuthenticationError as e:
         click.echo(f"❌ {e}", err=True)
         raise click.ClickException("Authentication failed")

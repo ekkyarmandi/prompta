@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "prompta"
-version = "0.2.10"
+version = "0.2.11"
 description = "A powerful CLI tool for managing and versioning prompts across projects"
 readme = "README.md"
 license = {file = "LICENSE"}
@@ -60,17 +60,12 @@ dev = [
 prompta = "prompta.main:cli"
 
 [tool.setuptools.packages.find]
-# Include the original implementation package (`prompta`) along with the public alias
-# package (`prompta`).
 where = ["."]
 include = ["prompta*"]
 
 [tool.setuptools.package-data]
-# Include FastAPI project template so that `prompta createproject` works from an
-# installed wheel.
 prompta = [
     "py.typed",
-    "templates/**/*",
 ]
 
 [tool.pytest.ini_options]

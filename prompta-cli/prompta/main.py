@@ -3,25 +3,16 @@
 import click
 
 from . import __version__
+from .commands.info import info_command
+from .commands.projects import projects_command, get_command
 
-# from .config import ConfigManager
-# from .commands.prompts import (
-#     prompts_group,
-#     list_command,
-#     get_command,
-#     save_command,
-#     show_command,
-#     delete_command,
-#     info_command,
-#     search_command,
-#     download_command,
-#     download_project_command,
-#     download_directory_command,
-#     download_tags_command,
-# )
-
-# Project management commands
-from .commands.project import init_command
+from .commands.prompts import (
+    list_command,
+    show_command,
+    #     save_command,
+    #     delete_command,
+    #     download_project_command,
+)
 
 
 @click.group(invoke_without_command=True)
@@ -41,25 +32,17 @@ def cli(ctx: click.Context, version: bool) -> None:
         click.echo(ctx.get_help())
 
 
-# Add command groups
-# cli.add_command(auth_group, name="auth")
-# cli.add_command(prompts_group, name="prompts")
-
 # Prompts related commands
-# cli.add_command(list_command, name="list")
-# cli.add_command(get_command, name="get")
+cli.add_command(list_command, name="list")
+cli.add_command(show_command, name="show")
 # cli.add_command(save_command, name="save")
-# cli.add_command(show_command, name="show")
 # cli.add_command(delete_command, name="delete")
-# cli.add_command(info_command, name="info")
-# cli.add_command(search_command, name="search")
-# cli.add_command(download_command, name="download")
 # cli.add_command(download_project_command, name="download-project")
-# cli.add_command(download_directory_command, name="download-directory")
-# cli.add_command(download_tags_command, name="download-tags")
 
 # Project related commands
-cli.add_command(init_command, name="init")
+cli.add_command(info_command, name="info")
+cli.add_command(projects_command, name="projects")
+cli.add_command(get_command, name="get")
 
 
 if __name__ == "__main__":

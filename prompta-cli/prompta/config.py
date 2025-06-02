@@ -121,11 +121,16 @@ class ConfigManager:
         self.config = Config()
 
     def load(self) -> None:
-        """Load configuration with priority: env vars > .env file > defaults."""
+        """Load configuration with priority: env vars > .env file > ~/.prompta > defaults."""
         # 1. Start with default config
         self.config = Config()
 
-        # 2. Override with environment variables and .env files (highest priority)
+        # 2. Load from ~/.prompta (lowest config priority)
+        prompta_config = self._get_config_from_prompta()
+        if prompta_config:
+            self._merge_configs(prompta_config)
+
+        # 3. Override with environment variables and .env files (highest priority)
         env_config = self._get_config_from_env()
         self._merge_configs(env_config)
 
@@ -201,6 +206,30 @@ class ConfigManager:
 
         return env_config
 
+    def _get_config_from_prompta(self) -> Optional[Config]:
+        """Get configuration from ~/.prompta file."""
+        prompta_path = Path.home() / ".prompta"
+        if not prompta_path.exists():
+            return None
+
+        try:
+            config = Config()
+            with open(prompta_path, "r") as f:
+                for line in f:
+                    line = line.strip()
+                    if "=" in line and not line.startswith("#"):
+                        key, value = line.split("=", 1)
+                        # Remove quotes from value
+                        value = value.strip().strip('"').strip("'")
+
+                        if key.strip() == "PROMPTA_API_URL":
+                            config.api_url = value
+
+            return config
+        except Exception:
+            # File might not exist or be malformed
+            return None
+
     def _merge_configs(self, other_config: Config) -> None:
         """Merge another configuration with the current one."""
         # Override with values from other_config
@@ -223,7 +252,7 @@ class ConfigManager:
             self.config.cache_ttl = other_config.cache_ttl
 
     def get_api_key(self, explicit_key: Optional[str] = None) -> Optional[str]:
-        """Get API key with priority: explicit > env var > .env file.
+        """Get API key with priority: explicit > env var > .env file > ~/.prompta.
 
         Args:
             explicit_key: Explicitly provided API key (highest priority)
@@ -249,5 +278,23 @@ class ConfigManager:
         except Exception:
             # .env file might not exist or be readable
             pass
+
+        # 4. ~/.prompta file
+        prompta_path = Path.home() / ".prompta"
+        if prompta_path.exists():
+            try:
+                with open(prompta_path, "r") as f:
+                    for line in f:
+                        line = line.strip()
+                        if "=" in line and not line.startswith("#"):
+                            key, value = line.split("=", 1)
+                            # Remove quotes from value
+                            value = value.strip().strip('"').strip("'")
+
+                            if key.strip() == "PROMPTA_API_KEY":
+                                return value if value else None
+            except Exception:
+                # File might not exist or be malformed
+                pass
 
         return None

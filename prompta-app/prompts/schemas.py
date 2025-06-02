@@ -7,22 +7,14 @@ from datetime import datetime
 class ProjectCreate(BaseModel):
     name: str = Field(..., min_length=1, max_length=255)
     description: Optional[str] = None
-    directory: Optional[str] = Field(None, max_length=500)
     tags: List[str] = Field(default_factory=list)
+    is_public: bool = False
 
     @validator("name")
     def validate_name(cls, v):
         v = v.strip()
         if not v:
             raise ValueError("Name cannot be empty")
-        return v
-
-    @validator("directory")
-    def validate_directory(cls, v):
-        if v is not None:
-            v = v.strip()
-            if not v:
-                return None
         return v
 
     @validator("tags")
@@ -37,11 +29,11 @@ class ProjectResponse(BaseModel):
     id: str
     name: str
     description: Optional[str]
-    directory: Optional[str]
     tags: List[str]
     created_at: datetime
     updated_at: datetime
     is_active: bool
+    is_public: bool
 
     class Config:
         from_attributes = True
@@ -50,9 +42,9 @@ class ProjectResponse(BaseModel):
 class ProjectUpdate(BaseModel):
     name: Optional[str] = Field(None, min_length=1, max_length=255)
     description: Optional[str] = None
-    directory: Optional[str] = Field(None, max_length=500)
     tags: Optional[List[str]] = None
     is_active: Optional[bool] = None
+    is_public: Optional[bool] = None
 
     @validator("name")
     def validate_name(cls, v):
@@ -60,14 +52,6 @@ class ProjectUpdate(BaseModel):
             v = v.strip()
             if not v:
                 raise ValueError("Name cannot be empty")
-        return v
-
-    @validator("directory")
-    def validate_directory(cls, v):
-        if v is not None:
-            v = v.strip()
-            if not v:
-                return None
         return v
 
     @validator("tags")
@@ -214,7 +198,6 @@ class PromptSearchParams(BaseModel):
     location: Optional[str] = None
     project_id: Optional[str] = None
     project_name: Optional[str] = None
-    directory: Optional[str] = None
     page: int = Field(default=1, ge=1)
     page_size: int = Field(default=20, ge=1, le=100)
 
@@ -228,7 +211,6 @@ class PromptSearchParams(BaseModel):
 # Download Schemas
 class PromptDownloadParams(BaseModel):
     project_name: Optional[str] = None
-    directory: Optional[str] = None
     tags: Optional[List[str]] = None
     include_content: bool = Field(
         default=True, description="Include prompt content in response"

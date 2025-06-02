@@ -23,11 +23,11 @@ class Project(Base):
     user_id = Column(String(36), ForeignKey("users.id"), nullable=False)
     name = Column(String(255), nullable=False, index=True)
     description = Column(Text, nullable=True)
-    directory = Column(String(500), nullable=True)  # Project directory path
-    tags = Column(JSON, default=list)  # List of project tags
+    tags = Column(JSON, default=list)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     is_active = Column(Boolean, default=True)
+    is_public = Column(Boolean, default=False, nullable=False)
 
     # Relationships
     user = relationship("User", back_populates="projects")
@@ -38,7 +38,6 @@ class Project(Base):
     # Composite index for user + name uniqueness
     __table_args__ = (
         Index("ix_user_project_name", "user_id", "name"),
-        Index("ix_projects_directory", "directory"),
         Index("ix_projects_updated", "updated_at"),
     )
 

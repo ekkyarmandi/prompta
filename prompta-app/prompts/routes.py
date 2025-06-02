@@ -7,7 +7,7 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from auth.dependencies import get_current_user_flexible
+from auth.dependencies import get_current_user_flexible, get_current_user_optional
 from auth.models import User
 from .models import Prompt, PromptVersion
 from .schemas import (
@@ -31,8 +31,13 @@ from .services import PromptService
 router = APIRouter(prefix="/prompts", tags=["prompts"])
 
 
-# Prompt CRUD Operations
 @router.post("/", response_model=PromptResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "",
+    response_model=PromptResponse,
+    status_code=status.HTTP_201_CREATED,
+    include_in_schema=False,
+)
 async def create_prompt(
     prompt_data: PromptCreate,
     current_user: User = Depends(get_current_user_flexible),
@@ -47,6 +52,7 @@ async def create_prompt(
 
 
 @router.get("/", response_model=PromptListResponse)
+@router.get("", response_model=PromptListResponse, include_in_schema=False)
 async def list_prompts(
     query: Optional[str] = Query(
         None, description="Search term for name, description, or location"
@@ -55,15 +61,27 @@ async def list_prompts(
     location: Optional[str] = Query(None, description="Filter by location pattern"),
     page: int = Query(1, ge=1, description="Page number"),
     page_size: int = Query(20, ge=1, le=100, description="Items per page"),
-    current_user: User = Depends(get_current_user_flexible),
+    user_auth: tuple[Optional[User], bool] = Depends(get_current_user_optional),
     db: Session = Depends(get_db),
 ):
-    """List user's prompts with search and pagination"""
+    """List prompts with search and pagination
+
+    - If no authentication: shows only public prompts
+    - If authenticated with ACCESS_TOKEN: shows only user's own prompts
+    - If authenticated with API_KEY: shows both public prompts and user's private prompts
+    """
+    user, is_api_key_auth = user_auth
+
     search_params = PromptSearchParams(
         query=query, tags=tags, location=location, page=page, page_size=page_size
     )
 
-    prompts, total = PromptService.list_prompts(db, current_user, search_params)
+    # Include private prompts only if authenticated with API key
+    include_private = bool(user and is_api_key_auth)
+
+    prompts, total = PromptService.list_prompts(
+        db, user, search_params, include_private
+    )
     total_pages = math.ceil(total / page_size) if total > 0 else 0
 
     return PromptListResponse(
@@ -80,12 +98,22 @@ async def search_prompts_by_content(
     q: str = Query(..., description="Search term for prompt content"),
     page: int = Query(1, ge=1, description="Page number"),
     page_size: int = Query(20, ge=1, le=100, description="Items per page"),
-    current_user: User = Depends(get_current_user_flexible),
+    user_auth: tuple[Optional[User], bool] = Depends(get_current_user_optional),
     db: Session = Depends(get_db),
 ):
-    """Search prompts by content in their current versions"""
+    """Search prompts by content in their current versions
+
+    - If no authentication: searches only public prompts
+    - If authenticated with ACCESS_TOKEN: searches only user's own prompts
+    - If authenticated with API_KEY: searches both public prompts and user's private prompts
+    """
+    user, is_api_key_auth = user_auth
+
+    # Include private prompts only if authenticated with API key
+    include_private = bool(user and is_api_key_auth)
+
     prompts, total = PromptService.search_prompts_by_content(
-        db, current_user, q, page, page_size
+        db, user, q, page, page_size, include_private
     )
     total_pages = math.ceil(total / page_size) if total > 0 else 0
 
@@ -98,37 +126,20 @@ async def search_prompts_by_content(
     )
 
 
-@router.get("/by-location", response_model=PromptResponse)
-async def get_prompt_by_location(
-    location: str = Query(..., description="File location path"),
-    current_user: User = Depends(get_current_user_flexible),
-    db: Session = Depends(get_db),
-):
-    """Get prompt by its file location"""
-    prompt = PromptService.get_prompt_by_location(db, current_user, location)
-    if not prompt:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Prompt not found at this location",
-        )
-    return prompt
-
-
-from typing import Union
-
-
 @router.get("/{prompt_id}", response_model=PromptResponse)
 async def get_prompt(
     prompt_id: str,
     db: Session = Depends(get_db),
-    current_user: Union[User, None] = Depends(get_current_user_flexible),
+    user_auth: tuple[Optional[User], bool] = Depends(get_current_user_optional),
 ):
     """
     Get a specific prompt by ID.
     - If the prompt is public, anyone can access.
     - If the prompt is private, only the owner (authenticated) can access.
     """
-    prompt = PromptService.get_prompt_public_or_private(db, prompt_id, current_user)
+    user, is_api_key_auth = user_auth
+
+    prompt = PromptService.get_prompt_public_or_private(db, prompt_id, user)
     if not prompt:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -307,10 +318,17 @@ async def download_prompts(
         True, description="Include prompt content in response"
     ),
     format: str = Query("json", description="Response format: json, zip"),
-    current_user: User = Depends(get_current_user_flexible),
+    user_auth: tuple[Optional[User], bool] = Depends(get_current_user_optional),
     db: Session = Depends(get_db),
 ):
-    """Download prompts filtered by project_name, directory, or tags"""
+    """Download prompts filtered by project_name, directory, or tags
+
+    - If no authentication: downloads only public prompts
+    - If authenticated with ACCESS_TOKEN: downloads only user's own prompts
+    - If authenticated with API_KEY: downloads both public prompts and user's private prompts
+    """
+    user, is_api_key_auth = user_auth
+
     download_params = PromptDownloadParams(
         project_name=project_name,
         directory=directory,
@@ -320,8 +338,11 @@ async def download_prompts(
     )
 
     try:
+        # Include private prompts only if authenticated with API key
+        include_private = bool(user and is_api_key_auth)
+
         prompts, total, filters_applied = PromptService.download_prompts(
-            db, current_user, download_params
+            db, user, download_params, include_private
         )
 
         if format == "json":
@@ -342,85 +363,6 @@ async def download_prompts(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
 
-@router.get("/download/zip")
-async def download_prompts_zip(
-    project_name: Optional[str] = Query(None, description="Filter by project name"),
-    directory: Optional[str] = Query(None, description="Filter by directory pattern"),
-    tags: Optional[List[str]] = Query(None, description="Filter by tags"),
-    current_user: User = Depends(get_current_user_flexible),
-    db: Session = Depends(get_db),
-):
-    """Download prompts as a ZIP file filtered by project_name, directory, or tags"""
-    download_params = PromptDownloadParams(
-        project_name=project_name,
-        directory=directory,
-        tags=tags,
-        include_content=True,
-        format="zip",
-    )
-
-    try:
-        prompts, total, filters_applied = PromptService.download_prompts(
-            db, current_user, download_params
-        )
-
-        if not prompts:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="No prompts found matching the criteria",
-            )
-
-        # Create ZIP file in memory
-        zip_buffer = io.BytesIO()
-        with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
-            for prompt in prompts:
-                if prompt.current_version and prompt.current_version.content:
-                    # Create a safe filename
-                    safe_name = "".join(
-                        c for c in prompt.name if c.isalnum() or c in (" ", "-", "_")
-                    ).rstrip()
-                    filename = f"{safe_name}.txt"
-
-                    # Add metadata as comment
-                    metadata = f"""# Prompt: {prompt.name}
-# Description: {prompt.description or 'No description'}
-# Location: {prompt.location}
-# Tags: {', '.join(prompt.tags) if prompt.tags else 'No tags'}
-# Project: {prompt.project.name if prompt.project else 'No project'}
-# Created: {prompt.created_at}
-# Updated: {prompt.updated_at}
-# Version: {prompt.current_version.version_number}
-
-"""
-                    content = metadata + prompt.current_version.content
-                    zip_file.writestr(filename, content)
-
-        zip_buffer.seek(0)
-
-        # Generate filename based on filters
-        filename_parts = []
-        if project_name:
-            filename_parts.append(f"project-{project_name}")
-        if directory:
-            filename_parts.append(f"dir-{directory.replace('/', '-')}")
-        if tags:
-            filename_parts.append(f"tags-{'-'.join(tags)}")
-
-        if not filename_parts:
-            filename_parts.append("all-prompts")
-
-        filename = f"prompta-prompts-{'-'.join(filename_parts)}.zip"
-
-        return StreamingResponse(
-            io.BytesIO(zip_buffer.read()),
-            media_type="application/zip",
-            headers={"Content-Disposition": f"attachment; filename={filename}"},
-        )
-
-    except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
-
-
 @router.get(
     "/download/by-project/{project_name}", response_model=PromptDownloadResponse
 )
@@ -429,10 +371,17 @@ async def download_prompts_by_project(
     include_content: bool = Query(
         True, description="Include prompt content in response"
     ),
-    current_user: User = Depends(get_current_user_flexible),
+    user_auth: tuple[Optional[User], bool] = Depends(get_current_user_optional),
     db: Session = Depends(get_db),
 ):
-    """Download all prompts from a specific project"""
+    """Download all prompts from a specific project
+
+    - If no authentication: downloads only public prompts from the project
+    - If authenticated with ACCESS_TOKEN: downloads only user's own prompts from the project
+    - If authenticated with API_KEY: downloads both public and user's private prompts from the project
+    """
+    user, is_api_key_auth = user_auth
+
     download_params = PromptDownloadParams(
         project_name=project_name,
         include_content=include_content,
@@ -440,72 +389,11 @@ async def download_prompts_by_project(
     )
 
     try:
+        # Include private prompts only if authenticated with API key
+        include_private = bool(user and is_api_key_auth)
+
         prompts, total, filters_applied = PromptService.download_prompts(
-            db, current_user, download_params
-        )
-
-        return PromptDownloadResponse(
-            prompts=prompts,
-            total=total,
-            download_format="json",
-            filters_applied=filters_applied,
-        )
-
-    except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
-
-
-@router.get("/download/by-directory", response_model=PromptDownloadResponse)
-async def download_prompts_by_directory(
-    directory: str = Query(..., description="Directory pattern to filter by"),
-    include_content: bool = Query(
-        True, description="Include prompt content in response"
-    ),
-    current_user: User = Depends(get_current_user_flexible),
-    db: Session = Depends(get_db),
-):
-    """Download all prompts from a specific directory pattern"""
-    download_params = PromptDownloadParams(
-        directory=directory,
-        include_content=include_content,
-        format="json",
-    )
-
-    try:
-        prompts, total, filters_applied = PromptService.download_prompts(
-            db, current_user, download_params
-        )
-
-        return PromptDownloadResponse(
-            prompts=prompts,
-            total=total,
-            download_format="json",
-            filters_applied=filters_applied,
-        )
-
-    except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
-
-
-@router.get("/download/by-tags", response_model=PromptDownloadResponse)
-async def download_prompts_by_tags(
-    tags: List[str] = Query(..., description="Tags to filter by"),
-    include_content: bool = Query(
-        True, description="Include prompt content in response"
-    ),
-    current_user: User = Depends(get_current_user_flexible),
-    db: Session = Depends(get_db),
-):
-    """Download all prompts matching specific tags"""
-    download_params = PromptDownloadParams(
-        tags=tags,
-        include_content=include_content,
-        format="json",
-    )
-
-    try:
-        prompts, total, filters_applied = PromptService.download_prompts(
-            db, current_user, download_params
+            db, user, download_params, include_private
         )
 
         return PromptDownloadResponse(

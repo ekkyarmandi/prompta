@@ -1,4 +1,5 @@
 from typing import List, Optional
+import logging
 import math
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query
@@ -32,13 +33,19 @@ async def create_project(
         return project
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except Exception as e:  # pragma: no cover – catch-all safeguards
+        logging.getLogger(__name__).exception("Unexpected error while creating project")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An unexpected error occurred while creating the project.",
+        ) from e
 
 
 @router.get("/", response_model=ProjectListResponse)
 async def list_projects(
-    query: Optional[str] = Query(None, description="Search term for name or description"),
-    tags: Optional[List[str]] = Query(None, description="Filter by tags"),
-    directory: Optional[str] = Query(None, description="Filter by directory pattern"),
+    query: Optional[str] = Query(
+        None, description="Search term for name or description"
+    ),
     page: int = Query(1, ge=1, description="Page number"),
     page_size: int = Query(20, ge=1, le=100, description="Items per page"),
     current_user: User = Depends(get_current_user_flexible),
@@ -46,7 +53,7 @@ async def list_projects(
 ):
     """List user's projects with search and pagination"""
     projects, total = ProjectService.list_projects(
-        db, current_user, query, tags, directory, page, page_size
+        db, current_user, query, None, page, page_size
     )
     total_pages = math.ceil(total / page_size) if total > 0 else 0
 
@@ -98,7 +105,9 @@ async def update_project(
 ):
     """Update a project's metadata"""
     try:
-        project = ProjectService.update_project(db, current_user, project_id, project_data)
+        project = ProjectService.update_project(
+            db, current_user, project_id, project_data
+        )
         if not project:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND, detail="Project not found"
@@ -106,6 +115,12 @@ async def update_project(
         return project
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except Exception as e:  # pragma: no cover
+        logging.getLogger(__name__).exception("Unexpected error while updating project")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An unexpected error occurred while updating the project.",
+        ) from e
 
 
 @router.delete("/{project_id}", status_code=status.HTTP_204_NO_CONTENT)

@@ -115,3 +115,40 @@ async def get_current_user_flexible(
         )
 
     return user
+
+
+# Optional authentication dependency for public endpoints
+async def get_current_user_optional(
+    db: Session = Depends(get_db),
+    credentials: Optional[HTTPAuthorizationCredentials] = Security(security),
+    api_key: Optional[str] = Security(api_key_header),
+) -> tuple[Optional[User], bool]:
+    """Get current user optionally from either JWT token or API key
+
+    Returns:
+        tuple: (user, is_api_key_auth) where:
+            - user: The authenticated user or None if not authenticated
+            - is_api_key_auth: True if authenticated via API key, False otherwise
+    """
+    user = None
+    is_api_key_auth = False
+
+    # Try JWT token first
+    if credentials:
+        token_data = verify_token(credentials.credentials)
+        if token_data:
+            user = db.query(User).filter(User.username == token_data.username).first()
+            if user and user.is_active:
+                is_api_key_auth = False
+            else:
+                user = None
+
+    # Try API key if token didn't work
+    if not user and api_key:
+        user = verify_api_key(db, api_key)
+        if user and user.is_active:
+            is_api_key_auth = True
+        else:
+            user = None
+
+    return user, is_api_key_auth

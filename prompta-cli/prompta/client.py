@@ -163,6 +163,54 @@ class PromptaClient:
         response = self._make_request("GET", "/prompts", params=params)
         return response.get("prompts", [])
 
+    def get_projects(
+        self,
+        query: Optional[str] = None,
+        tags: Optional[List[str]] = None,
+        page: int = 1,
+        page_size: int = 20,
+    ) -> Dict[str, Any]:
+        """Get list of projects.
+
+        Args:
+            query: Search term for name or description
+            tags: Filter by tags
+            page: Page number
+            page_size: Items per page
+
+        Returns:
+            Project list response with pagination
+        """
+        params = {"page": page, "page_size": page_size}
+        if query:
+            params["query"] = query
+        if tags:
+            params["tags"] = tags
+
+        return self._make_request("GET", "/projects", params=params)
+
+    def get_project_by_id(self, project_id: str) -> Dict[str, Any]:
+        """Get a project by ID.
+
+        Args:
+            project_id: Project ID
+
+        Returns:
+            Project data
+        """
+        return self._make_request("GET", f"/projects/{project_id}")
+
+    def get_project_by_name(self, project_name: str) -> Dict[str, Any]:
+        """Get a project by name.
+
+        Args:
+            project_name: Project name
+
+        Returns:
+            Project data
+        """
+        return self._make_request("GET", f"/projects/by-name/{project_name}")
+
     def get_prompt_by_name(self, name: str) -> Dict[str, Any]:
         """Get a prompt by name.
 
@@ -181,6 +229,86 @@ class PromptaClient:
                 return prompt
 
         raise NotFoundError(f"Prompt '{name}' not found")
+
+    def get_prompt_by_id(self, prompt_id: str) -> Dict[str, Any]:
+        """Get a prompt by ID.
+
+        Args:
+            prompt_id: Prompt ID
+
+        Returns:
+            Prompt data
+        """
+        return self._make_request("GET", f"/prompts/{prompt_id}")
+
+    def get_prompt(
+        self, identifier: str, project_id: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """Get a prompt by name or ID with duplicate handling.
+
+        Args:
+            identifier: Prompt name or ID
+            project_id: Optional project ID to filter by when multiple prompts have the same name
+
+        Returns:
+            Prompt data
+
+        Raises:
+            NotFoundError: If prompt is not found
+            ValidationError: If multiple prompts found with same name and no project_id provided
+        """
+        # Try to get by ID first (UUIDs are 36 characters)
+        if len(identifier) == 36 and identifier.count("-") == 4:
+            try:
+                return self.get_prompt_by_id(identifier)
+            except NotFoundError:
+                pass  # Fallback to name search
+
+        # Get all prompts and filter by name
+        prompts = self.get_prompts()
+        matching_prompts = [
+            prompt for prompt in prompts if prompt["name"] == identifier
+        ]
+
+        if not matching_prompts:
+            raise NotFoundError(f"Prompt '{identifier}' not found")
+
+        if len(matching_prompts) == 1:
+            return matching_prompts[0]
+
+        # Multiple prompts found with same name
+        if project_id:
+            # Filter by project_id
+            project_filtered = [
+                p for p in matching_prompts if p.get("project_id") == project_id
+            ]
+            if len(project_filtered) == 1:
+                return project_filtered[0]
+            elif len(project_filtered) == 0:
+                raise NotFoundError(
+                    f"Prompt '{identifier}' not found in specified project"
+                )
+            else:
+                raise ValidationError(
+                    f"Multiple prompts named '{identifier}' found even within the specified project"
+                )
+
+        # Multiple prompts found, need project specification
+        project_info = []
+        for prompt in matching_prompts:
+            if prompt.get("project"):
+                project_info.append(
+                    f"- Project: {prompt['project']['name']} (ID: {prompt['project_id']})"
+                )
+            else:
+                project_info.append(f"- No project (ID: {prompt['project_id']})")
+
+        from .exceptions import ValidationError
+
+        raise ValidationError(
+            f"Multiple prompts named '{identifier}' found. Please specify the project using --project-id:\n"
+            + "\n".join(project_info)
+        )
 
     def create_prompt(self, prompt_data: Dict[str, Any]) -> Dict[str, Any]:
         """Create a new prompt.
@@ -400,7 +528,6 @@ class PromptaClient:
     def download_prompts(
         self,
         project_name: Optional[str] = None,
-        directory: Optional[str] = None,
         tags: Optional[List[str]] = None,
         include_content: bool = True,
         format: str = "json",
@@ -409,7 +536,6 @@ class PromptaClient:
 
         Args:
             project_name: Filter by project name
-            directory: Filter by directory pattern
             tags: Filter by tags
             include_content: Include prompt content in response
             format: Response format (json or zip)
@@ -420,8 +546,6 @@ class PromptaClient:
         params = {}
         if project_name:
             params["project_name"] = project_name
-        if directory:
-            params["directory"] = directory
         if tags:
             params["tags"] = tags
         if include_content is not None:
@@ -434,14 +558,12 @@ class PromptaClient:
     def download_prompts_zip(
         self,
         project_name: Optional[str] = None,
-        directory: Optional[str] = None,
         tags: Optional[List[str]] = None,
     ) -> bytes:
         """Download prompts as a ZIP file.
 
         Args:
             project_name: Filter by project name
-            directory: Filter by directory pattern
             tags: Filter by tags
 
         Returns:
@@ -450,8 +572,6 @@ class PromptaClient:
         params = {}
         if project_name:
             params["project_name"] = project_name
-        if directory:
-            params["directory"] = directory
         if tags:
             params["tags"] = tags
 
@@ -502,23 +622,6 @@ class PromptaClient:
         params = {"include_content": include_content}
         return self._make_request(
             "GET", f"/prompts/download/by-project/{quote(project_name)}", params=params
-        )
-
-    def download_prompts_by_directory(
-        self, directory: str, include_content: bool = True
-    ) -> Dict[str, Any]:
-        """Download all prompts from a specific directory pattern.
-
-        Args:
-            directory: Directory pattern
-            include_content: Include prompt content in response
-
-        Returns:
-            Download response data
-        """
-        params = {"directory": directory, "include_content": include_content}
-        return self._make_request(
-            "GET", "/prompts/download/by-directory", params=params
         )
 
     def download_prompts_by_tags(
