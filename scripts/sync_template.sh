@@ -38,16 +38,20 @@ fi
 # Define source and target directories
 SOURCE_DIR="./prompta-app"
 TARGET_DIR="./prompta-cli/prompta/templates/api"
+TEMPLATES_BASE_DIR="./prompta-cli/prompta/templates"
 
 print_status "Starting template synchronization..."
 print_status "Source: $SOURCE_DIR"
 print_status "Target: $TARGET_DIR"
 
-# Create target directory if it doesn't exist
-if [ ! -d "$TARGET_DIR" ]; then
-    print_status "Creating target directory: $TARGET_DIR"
-    mkdir -p "$TARGET_DIR"
+# Clear the templates/api directory if it exists
+if [ -d "$TARGET_DIR" ]; then
+    rm -rf "$TARGET_DIR"
 fi
+
+# Create target directory if it doesn't exist
+print_status "Creating target directory: $TARGET_DIR"
+mkdir -p "$TARGET_DIR"
 
 # List of directories to sync
 DIRECTORIES=(
@@ -82,27 +86,6 @@ copy_directory() {
         # Create target directory if it doesn't exist
         mkdir -p "$target_path"
         
-        # Backup preserved files if they exist in target
-        local backup_dir="/tmp/prompta_backup_$$"
-        local has_preserved_files=false
-        
-        for preserve_file in "${PRESERVE_FILES[@]}"; do
-            local preserve_path="$target_path/$preserve_file"
-            if [ -f "$preserve_path" ]; then
-                if [ "$has_preserved_files" = false ]; then
-                    mkdir -p "$backup_dir"
-                    has_preserved_files=true
-                fi
-                print_status "Backing up preserved file: $preserve_file"
-                cp "$preserve_path" "$backup_dir/"
-            fi
-        done
-        
-        # Remove target directory contents (but not the directory itself)
-        if [ -d "$target_path" ]; then
-            rm -rf "$target_path"/*
-        fi
-        
         # Special handling for migrations directory (exclude versions content)
         if [ "$dir_name" = "migrations" ]; then
             # First copy all regular files from migrations
@@ -119,20 +102,7 @@ copy_directory() {
             cp -r "$source_path"/* "$target_path"/ 2>/dev/null || true
         fi
         
-        # Restore preserved files if they were backed up
-        if [ "$has_preserved_files" = true ]; then
-            for preserve_file in "${PRESERVE_FILES[@]}"; do
-                local backup_file="$backup_dir/$preserve_file"
-                if [ -f "$backup_file" ]; then
-                    print_status "Restoring preserved file: $preserve_file"
-                    cp "$backup_file" "$target_path/"
-                fi
-            done
-            # Clean up backup directory
-            rm -rf "$backup_dir"
-        fi
-        
-        print_success "Directory '$dir_name' synced successfully (preserved files retained)"
+        print_success "Directory '$dir_name' synced successfully"
     else
         print_warning "Source directory '$dir_name' not found, skipping..."
     fi
@@ -156,11 +126,6 @@ copy_file() {
         print_success "File '$file_name' synced successfully"
     else
         print_warning "Source file '$file_name' not found in $SOURCE_DIR, skipping..."
-        
-        # Check if the file exists in target (might be template-specific)
-        if [ -f "$target_path" ]; then
-            print_status "File '$file_name' already exists in target, keeping existing version"
-        fi
     fi
 }
 
