@@ -3,8 +3,27 @@
 Pytest configuration and fixtures for Prompta API tests
 """
 
+import os
+import sys
 import pytest
 import httpx
+
+# Add the project root directory to sys.path for imports
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+
+# Set up test environment
+os.environ.setdefault("TESTING", "True")
+os.environ.setdefault("APP_NAME", "Prompta API Test")
+os.environ.setdefault("APP_VERSION", "1.0.0")
+os.environ.setdefault("DEBUG", "false")
+os.environ.setdefault("DATABASE_URL", "sqlite:///./test.db")
+os.environ.setdefault("SECRET_KEY", "test-secret-key-for-testing-only")
+os.environ.setdefault("ALGORITHM", "HS256")
+os.environ.setdefault("ACCESS_TOKEN_EXPIRE_MINUTES", "30")
+os.environ.setdefault("API_KEY_EXPIRE_DAYS", "365")
+os.environ.setdefault("ALLOWED_ORIGINS", '["http://localhost:3000"]')
+os.environ.setdefault("RATE_LIMIT_REQUESTS", "100")
+os.environ.setdefault("RATE_LIMIT_WINDOW", "60")
 
 BASE_URL = "http://localhost:8000"
 
@@ -91,3 +110,31 @@ def created_prompt(auth_headers, test_prompt_data):
 def prompt_id(created_prompt):
     """Get the ID of a created test prompt"""
     return created_prompt["id"]
+
+
+# Add pytest-asyncio plugin support
+pytest_plugins = ["pytest_asyncio"]
+
+
+# Mock database session fixture
+@pytest.fixture
+def mock_db():
+    """Create a mock database session for unit tests"""
+    from unittest.mock import MagicMock
+
+    mock_session = MagicMock()
+    return mock_session
+
+
+# Mock user fixture
+@pytest.fixture
+def mock_user():
+    """Create a mock user for unit tests"""
+    from unittest.mock import MagicMock
+
+    mock_user = MagicMock()
+    mock_user.id = "00000000-0000-0000-0000-000000000000"
+    mock_user.username = "testuser"
+    mock_user.email = "test@example.com"
+    mock_user.is_active = True
+    return mock_user
