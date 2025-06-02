@@ -3,7 +3,7 @@
 Simple test script to verify the Prompta API authentication functionality
 """
 
-import requests
+import httpx
 import json
 
 BASE_URL = "http://localhost:8000"
@@ -12,7 +12,7 @@ BASE_URL = "http://localhost:8000"
 def test_health():
     """Test health endpoint"""
     print("Testing health endpoint...")
-    response = requests.get(f"{BASE_URL}/health")
+    response = httpx.get(f"{BASE_URL}/health")
     print(f"Status: {response.status_code}")
     print(f"Response: {response.json()}")
     print()
@@ -26,26 +26,26 @@ def test_user_registration():
         "email": "test2@example.com",
         "password": "testpassword123",
     }
-    response = requests.post(f"{BASE_URL}/auth/register", json=user_data)
+    response = httpx.post(f"{BASE_URL}/auth/register", json=user_data)
     print(f"Status: {response.status_code}")
     print(f"Response: {response.json()}")
     print()
     return response.json() if response.status_code == 201 else None
 
 
-def test_user_login(username, password):
-    """Test user login"""
+def _user_login_helper(username, password):
+    """Helper function for user login (not a pytest test)"""
     print("Testing user login...")
     login_data = {"username": username, "password": password}
-    response = requests.post(f"{BASE_URL}/auth/login", json=login_data)
+    response = httpx.post(f"{BASE_URL}/auth/login", json=login_data)
     print(f"Status: {response.status_code}")
     print(f"Response: {response.json()}")
     print()
     return response.json()["access_token"] if response.status_code == 200 else None
 
 
-def test_get_user_info(token=None, api_key=None):
-    """Test getting user info with JWT or API key"""
+def _get_user_info_helper(token=None, api_key=None):
+    """Helper function for getting user info (not a pytest test)"""
     print("Testing get user info...")
     headers = {}
     if token:
@@ -53,19 +53,19 @@ def test_get_user_info(token=None, api_key=None):
     elif api_key:
         headers["X-API-Key"] = api_key
 
-    response = requests.get(f"{BASE_URL}/auth/me", headers=headers)
+    response = httpx.get(f"{BASE_URL}/auth/me", headers=headers)
     print(f"Status: {response.status_code}")
     print(f"Response: {response.json()}")
     print()
 
 
-def test_create_api_key(token):
-    """Test creating an API key"""
+def _create_api_key_helper(token):
+    """Helper function for creating an API key (not a pytest test)"""
     print("Testing API key creation...")
     headers = {"Authorization": f"Bearer {token}"}
     api_key_data = {"name": "test-cli-key"}
 
-    response = requests.post(
+    response = httpx.post(
         f"{BASE_URL}/auth/api-keys", json=api_key_data, headers=headers
     )
     print(f"Status: {response.status_code}")
@@ -74,8 +74,8 @@ def test_create_api_key(token):
     return response.json()["key"] if response.status_code == 201 else None
 
 
-def test_list_api_keys(token=None, api_key=None):
-    """Test listing API keys"""
+def _list_api_keys_helper(token=None, api_key=None):
+    """Helper function for listing API keys (not a pytest test)"""
     print("Testing API key listing...")
     headers = {}
     if token:
@@ -83,7 +83,7 @@ def test_list_api_keys(token=None, api_key=None):
     elif api_key:
         headers["X-API-Key"] = api_key
 
-    response = requests.get(f"{BASE_URL}/auth/api-keys", headers=headers)
+    response = httpx.get(f"{BASE_URL}/auth/api-keys", headers=headers)
     print(f"Status: {response.status_code}")
     print(f"Response: {response.json()}")
     print()
@@ -103,28 +103,28 @@ def main():
         return
 
     # Test login
-    token = test_user_login("testuser2", "testpassword123")
+    token = _user_login_helper("testuser2", "testpassword123")
     if not token:
         print("Login failed, stopping tests")
         return
 
     # Test getting user info with JWT
-    test_get_user_info(token=token)
+    _get_user_info_helper(token=token)
 
     # Test creating API key
-    api_key = test_create_api_key(token)
+    api_key = _create_api_key_helper(token)
     if not api_key:
         print("API key creation failed")
         return
 
     # Test getting user info with API key
-    test_get_user_info(api_key=api_key)
+    _get_user_info_helper(api_key=api_key)
 
     # Test listing API keys with JWT
-    test_list_api_keys(token=token)
+    _list_api_keys_helper(token=token)
 
     # Test listing API keys with API key
-    test_list_api_keys(api_key=api_key)
+    _list_api_keys_helper(api_key=api_key)
 
     print("=== All tests completed! ===")
 

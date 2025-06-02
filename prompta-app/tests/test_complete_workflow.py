@@ -4,7 +4,7 @@ Complete workflow test for Prompta API
 Demonstrates the full functionality from user registration to prompt management
 """
 
-import requests
+import httpx
 import json
 import time
 
@@ -36,7 +36,7 @@ def main():
         "password": "securepassword123",
     }
 
-    response = requests.post(f"{BASE_URL}/auth/register", json=user_data)
+    response = httpx.post(f"{BASE_URL}/auth/register", json=user_data)
     print(f"Registration Status: {response.status_code}")
     if response.status_code == 201:
         user = response.json()
@@ -49,7 +49,7 @@ def main():
     print_step(2, "User Login & JWT Token")
     login_data = {"username": "workflowuser", "password": "securepassword123"}
 
-    response = requests.post(f"{BASE_URL}/auth/login", json=login_data)
+    response = httpx.post(f"{BASE_URL}/auth/login", json=login_data)
     print(f"Login Status: {response.status_code}")
     if response.status_code == 200:
         token_data = response.json()
@@ -64,7 +64,7 @@ def main():
     headers = {"Authorization": f"Bearer {jwt_token}"}
     api_key_data = {"name": "workflow-test-key", "expires_at": None}
 
-    response = requests.post(
+    response = httpx.post(
         f"{BASE_URL}/auth/api-keys", json=api_key_data, headers=headers
     )
     print(f"API Key Creation Status: {response.status_code}")
@@ -81,7 +81,7 @@ def main():
     print_step(4, "Switch to API Key Authentication")
     api_headers = {"X-API-Key": api_key}
 
-    response = requests.get(f"{BASE_URL}/auth/me", headers=api_headers)
+    response = httpx.get(f"{BASE_URL}/auth/me", headers=api_headers)
     print(f"User Info Status: {response.status_code}")
     if response.status_code == 200:
         user_info = response.json()
@@ -121,7 +121,7 @@ def main():
 
     created_prompts = []
     for prompt_data in prompts_to_create:
-        response = requests.post(
+        response = httpx.post(
             f"{BASE_URL}/prompts/", json=prompt_data, headers=api_headers
         )
         if response.status_code == 201:
@@ -137,7 +137,7 @@ def main():
     print_step(6, "List and Search Prompts")
 
     # List all prompts
-    response = requests.get(f"{BASE_URL}/prompts/", headers=api_headers)
+    response = httpx.get(f"{BASE_URL}/prompts/", headers=api_headers)
     if response.status_code == 200:
         data = response.json()
         print(f"✓ Total prompts: {data['total']}")
@@ -145,7 +145,7 @@ def main():
             print(f"  - {prompt['name']}: {prompt['description']}")
 
     # Search by content
-    response = requests.get(f"{BASE_URL}/prompts/search?q=React", headers=api_headers)
+    response = httpx.get(f"{BASE_URL}/prompts/search?q=React", headers=api_headers)
     if response.status_code == 200:
         data = response.json()
         print(f"\n✓ Content search for 'React': {data['total']} results")
@@ -153,7 +153,7 @@ def main():
             print(f"  - {prompt['name']}")
 
     # Search by tags
-    response = requests.get(f"{BASE_URL}/prompts/?tags=javascript", headers=api_headers)
+    response = httpx.get(f"{BASE_URL}/prompts/?tags=javascript", headers=api_headers)
     if response.status_code == 200:
         data = response.json()
         print(f"\n✓ Tag search for 'javascript': {data['total']} results")
@@ -173,7 +173,7 @@ def main():
             "commit_message": "Added module resolution configuration",
         }
 
-        response = requests.post(
+        response = httpx.post(
             f"{BASE_URL}/prompts/{prompt_id}/versions",
             json=version_data,
             headers=api_headers,
@@ -185,7 +185,7 @@ def main():
             )
 
         # List versions
-        response = requests.get(
+        response = httpx.get(
             f"{BASE_URL}/prompts/{prompt_id}/versions", headers=api_headers
         )
         if response.status_code == 200:
@@ -199,7 +199,7 @@ def main():
 
         # Compare versions
         if versions_data["total"] >= 2:
-            response = requests.get(
+            response = httpx.get(
                 f"{BASE_URL}/prompts/{prompt_id}/diff/1/2", headers=api_headers
             )
             if response.status_code == 200:
@@ -225,7 +225,7 @@ def main():
             "tags": test_prompt["tags"] + ["advanced", "patterns"],
         }
 
-        response = requests.put(
+        response = httpx.put(
             f"{BASE_URL}/prompts/{prompt_id}", json=update_data, headers=api_headers
         )
         if response.status_code == 200:
@@ -236,7 +236,7 @@ def main():
 
     # Step 9: Get Prompt by Location
     print_step(9, "Get Prompt by Location")
-    response = requests.get(
+    response = httpx.get(
         f"{BASE_URL}/prompts/by-location?location=tsconfig.json", headers=api_headers
     )
     if response.status_code == 200:
@@ -247,7 +247,7 @@ def main():
     print_step(10, "API Key Management")
 
     # List API keys
-    response = requests.get(f"{BASE_URL}/auth/api-keys", headers=api_headers)
+    response = httpx.get(f"{BASE_URL}/auth/api-keys", headers=api_headers)
     if response.status_code == 200:
         keys_data = response.json()
         print(f"✓ User has {keys_data['total']} API keys:")

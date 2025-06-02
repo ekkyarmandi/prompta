@@ -3,7 +3,7 @@
 Script to create additional test prompts for search functionality
 """
 
-import requests
+import httpx
 
 BASE_URL = "http://localhost:8000"
 
@@ -12,7 +12,7 @@ def get_token():
     """Login and get token"""
     login_data = {"username": "promptuser", "password": "testpassword123"}
 
-    response = requests.post(f"{BASE_URL}/auth/login", json=login_data)
+    response = httpx.post(f"{BASE_URL}/auth/login", json=login_data)
     if response.status_code == 200:
         return response.json()["access_token"]
     return None
@@ -59,9 +59,7 @@ def create_sample_prompts(token):
 
     created_prompts = []
     for prompt_data in prompts:
-        response = requests.post(
-            f"{BASE_URL}/prompts/", json=prompt_data, headers=headers
-        )
+        response = httpx.post(f"{BASE_URL}/prompts/", json=prompt_data, headers=headers)
         if response.status_code == 201:
             prompt = response.json()
             print(f"✓ Created: {prompt['name']}")
@@ -72,15 +70,15 @@ def create_sample_prompts(token):
     return created_prompts
 
 
-def test_advanced_search(token):
-    """Test various search scenarios"""
+def _advanced_search_helper(token):
+    """Helper function for testing various search scenarios (not a pytest test)"""
     headers = {"Authorization": f"Bearer {token}"}
 
     print("\n=== Testing Advanced Search ===")
 
     # Search by content
     print("\n1. Content search for 'function':")
-    response = requests.get(f"{BASE_URL}/prompts/search?q=function", headers=headers)
+    response = httpx.get(f"{BASE_URL}/prompts/search?q=function", headers=headers)
     if response.status_code == 200:
         data = response.json()
         print(f"   Found {data['total']} prompts")
@@ -89,7 +87,7 @@ def test_advanced_search(token):
 
     # Search by tags
     print("\n2. Tag search for 'python':")
-    response = requests.get(f"{BASE_URL}/prompts/?tags=python", headers=headers)
+    response = httpx.get(f"{BASE_URL}/prompts/?tags=python", headers=headers)
     if response.status_code == 200:
         data = response.json()
         print(f"   Found {data['total']} prompts")
@@ -98,7 +96,7 @@ def test_advanced_search(token):
 
     # Search by location pattern
     print("\n3. Location search for '.md':")
-    response = requests.get(f"{BASE_URL}/prompts/?location=.md", headers=headers)
+    response = httpx.get(f"{BASE_URL}/prompts/?location=.md", headers=headers)
     if response.status_code == 200:
         data = response.json()
         print(f"   Found {data['total']} prompts")
@@ -107,7 +105,7 @@ def test_advanced_search(token):
 
     # Combined search
     print("\n4. Combined search (query + tags):")
-    response = requests.get(
+    response = httpx.get(
         f"{BASE_URL}/prompts/?query=component&tags=react", headers=headers
     )
     if response.status_code == 200:
@@ -131,7 +129,7 @@ def main():
     print(f"\nCreated {len(created_prompts)} additional prompts")
 
     # Test search functionality
-    test_advanced_search(token)
+    _advanced_search_helper(token)
 
     print("\n=== Done! ===")
 
