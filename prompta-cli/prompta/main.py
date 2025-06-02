@@ -11,7 +11,6 @@ from .commands.prompts import (
     show_command,
     #     save_command,
     #     delete_command,
-    #     download_project_command,
 )
 
 
@@ -37,7 +36,6 @@ cli.add_command(list_command, name="list")
 cli.add_command(show_command, name="show")
 # cli.add_command(save_command, name="save")
 # cli.add_command(delete_command, name="delete")
-# cli.add_command(download_project_command, name="download-project")
 
 # Project related commands
 cli.add_command(info_command, name="info")

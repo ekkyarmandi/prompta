@@ -555,58 +555,6 @@ class PromptaClient:
 
         return self._make_request("GET", "/prompts/download", params=params)
 
-    def download_prompts_zip(
-        self,
-        project_name: Optional[str] = None,
-        tags: Optional[List[str]] = None,
-    ) -> bytes:
-        """Download prompts as a ZIP file.
-
-        Args:
-            project_name: Filter by project name
-            tags: Filter by tags
-
-        Returns:
-            ZIP file content as bytes
-        """
-        params = {}
-        if project_name:
-            params["project_name"] = project_name
-        if tags:
-            params["tags"] = tags
-
-        url = f"{self.base_url}/prompts/download/zip"
-        headers = self._get_headers()
-
-        try:
-            with httpx.Client(
-                timeout=self.timeout,
-                verify=self.config.verify_ssl,
-                follow_redirects=True,
-            ) as client:
-                response = client.request(
-                    method="GET",
-                    url=url,
-                    headers=headers,
-                    params=params,
-                )
-
-                # Handle different status codes
-                if response.status_code == 401:
-                    error_detail = self._extract_error_detail(response)
-                    raise AuthenticationError(error_detail, response.status_code)
-                elif response.status_code == 404:
-                    error_detail = self._extract_error_detail(response)
-                    raise NotFoundError(error_detail, response.status_code)
-                elif response.status_code >= 400:
-                    error_detail = self._extract_error_detail(response)
-                    raise PromptaAPIError(error_detail, response.status_code)
-
-                return response.content
-
-        except httpx.RequestError as e:
-            raise PromptaAPIError(f"Request failed: {str(e)}")
-
     def download_prompts_by_project(
         self, project_name: str, include_content: bool = True
     ) -> Dict[str, Any]:
@@ -623,18 +571,3 @@ class PromptaClient:
         return self._make_request(
             "GET", f"/prompts/download/by-project/{quote(project_name)}", params=params
         )
-
-    def download_prompts_by_tags(
-        self, tags: List[str], include_content: bool = True
-    ) -> Dict[str, Any]:
-        """Download all prompts matching specific tags.
-
-        Args:
-            tags: Tags to filter by
-            include_content: Include prompt content in response
-
-        Returns:
-            Download response data
-        """
-        params = {"tags": tags, "include_content": include_content}
-        return self._make_request("GET", "/prompts/download/by-tags", params=params)

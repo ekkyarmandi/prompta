@@ -14,6 +14,32 @@ from ..exceptions import (
 from ..utils.auth import get_authenticated_client
 
 
+def _normalize_prompt_location(location: str) -> str:
+    """
+    Normalize prompt location for file system use.
+
+    Handles:
+    - Tilde replacement (~/path -> ./path)
+    - Preserves leading dots for hidden directories (.cursor/rules/file.md)
+    - Removes explicit "./" prefix only
+
+    Args:
+        location: The original location from the prompt
+
+    Returns:
+        Normalized path suitable for file system operations
+    """
+    if location.startswith("~"):
+        # Replace tilde with current directory prefix
+        location = "./" + location[1:].lstrip("/")
+
+    # Remove explicit "./" prefix but preserve other leading dots
+    if location.startswith("./"):
+        return location[2:]
+
+    return location
+
+
 @click.group()
 def prompts_group():
     """Prompt management commands for creating, updating, and managing prompts."""
@@ -21,20 +47,48 @@ def prompts_group():
 
 
 @click.command()
+@click.option("--query", help="Search term for name or description")
 @click.option("--tags", help="Filter by tags (comma-separated)")
 @click.option("--location", help="Filter by location")
+@click.option("--page", type=int, default=1, help="Page number (default: 1)")
+@click.option("--page-size", type=int, default=20, help="Items per page (default: 20)")
 @click.option("--api-key", help="API key to use for this request")
-def list_command(tags: Optional[str], location: Optional[str], api_key: Optional[str]):
-    """List all prompts."""
+def list_command(
+    query: Optional[str],
+    tags: Optional[str],
+    location: Optional[str],
+    page: int,
+    page_size: int,
+    api_key: Optional[str],
+):
+    """List all prompts with search and filtering options."""
     try:
         client = get_authenticated_client(api_key)
 
-        # Parse tags
+        # Parse tags as a list for API compatibility
         tag_list = None
         if tags:
-            tag_list = [tag.strip() for tag in tags.split(",")]
+            # API expects a list of strings, not a single comma-separated string
+            tag_list = [tag.strip() for tag in tags.split(",") if tag.strip()]
 
-        prompts = client.get_prompts(tags=tag_list, location=location)
+        # Attempt to get paginated prompts
+        response = client.get_prompts(
+            query=query,
+            tags=tag_list if tag_list is not None else None,
+            location=location,
+            page=page,
+            page_size=page_size,
+        )
+
+        # Support both paginated and legacy list responses
+        if isinstance(response, dict):
+            prompts = response.get("prompts", [])
+            total = response.get("total", 0)
+            total_pages = response.get("total_pages", 0)
+        else:
+            prompts = response
+            total = len(prompts)
+            total_pages = 1
 
         if not prompts:
             click.echo("No prompts found.")
@@ -50,6 +104,11 @@ def list_command(tags: Optional[str], location: Optional[str], api_key: Optional
             click.echo(
                 f"{prompt['name']:<20} {prompt['location']:<15} {tags_str:<20} {version:<8}"
             )
+
+        # Show pagination info if available
+        if total_pages > 1:
+            click.echo()
+            click.echo(f"Page {page} of {total_pages} (Total: {total} prompts)")
 
     except AuthenticationError as e:
         click.echo(f"❌ {e}", err=True)
@@ -81,12 +140,9 @@ def get_command(
         if output:
             output_path = Path(output)
         else:
-            # Handle tilde replacement for location
-            location = prompt["location"]
-            if location.startswith("~"):
-                # Remove tilde and replace with ./
-                location = "./" + location[1:].lstrip("/")
-            output_path = Path(location)
+            # Use the helper function to properly normalize the location
+            normalized_location = _normalize_prompt_location(prompt["location"])
+            output_path = Path(normalized_location)
 
         # Create parent directories if they don't exist
         output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -396,474 +452,6 @@ def search_command(query: str, api_key: Optional[str]):
     except AuthenticationError as e:
         click.echo(f"❌ {e}", err=True)
         raise click.ClickException("Authentication failed")
-    except PromptaAPIError as e:
-        click.echo(f"❌ {e}", err=True)
-        raise click.ClickException("API request failed")
-
-
-@prompts_group.command("download")
-@click.option("--project", help="Filter by project name")
-@click.option("--directory", help="Filter by directory pattern")
-@click.option("--tags", help="Filter by tags (comma-separated)")
-@click.option("--output", "-o", help="Output directory (defaults to current directory)")
-@click.option(
-    "--format",
-    type=click.Choice(["json", "zip"]),
-    default="json",
-    help="Download format",
-)
-@click.option(
-    "--no-content", is_flag=True, help="Exclude prompt content from JSON response"
-)
-@click.option("--api-key", help="API key to use for this request")
-def download_command(
-    project: Optional[str],
-    directory: Optional[str],
-    tags: Optional[str],
-    output: Optional[str],
-    format: str,
-    no_content: bool,
-    api_key: Optional[str],
-):
-    """Download prompts with filtering options."""
-    try:
-        from tqdm import tqdm
-        import json
-        import zipfile
-        import io
-
-        client = get_authenticated_client(api_key)
-
-        # Parse tags
-        tag_list = None
-        if tags:
-            tag_list = [tag.strip() for tag in tags.split(",")]
-
-        # Set output directory
-        output_dir = Path(output) if output else Path.cwd()
-        output_dir.mkdir(parents=True, exist_ok=True)
-
-        if format == "zip":
-            # Download as ZIP
-            click.echo("📦 Downloading prompts as ZIP...")
-            zip_content = client.download_prompts_zip(
-                project_name=project, directory=directory, tags=tag_list
-            )
-
-            # Generate filename
-            filename_parts = []
-            if project:
-                filename_parts.append(f"project-{project}")
-            if directory:
-                filename_parts.append(f"dir-{directory.replace('/', '-')}")
-            if tag_list:
-                filename_parts.append(f"tags-{'-'.join(tag_list)}")
-
-            if not filename_parts:
-                filename_parts.append("all-prompts")
-
-            filename = f"prompta-prompts-{'-'.join(filename_parts)}.zip"
-            zip_path = output_dir / filename
-
-            with open(zip_path, "wb") as f:
-                f.write(zip_content)
-
-            click.echo(f"✅ Downloaded ZIP file to {zip_path}")
-
-        else:
-            # Download as JSON
-            click.echo("📄 Downloading prompts as JSON...")
-            response = client.download_prompts(
-                project_name=project,
-                directory=directory,
-                tags=tag_list,
-                include_content=not no_content,
-                format="json",
-            )
-
-            prompts = response.get("prompts", [])
-            total = response.get("total", 0)
-            filters_applied = response.get("filters_applied", {})
-
-            if total == 0:
-                click.echo("No prompts found matching the criteria.")
-                return
-
-            # Generate filename
-            filename_parts = []
-            if project:
-                filename_parts.append(f"project-{project}")
-            if directory:
-                filename_parts.append(f"dir-{directory.replace('/', '-')}")
-            if tag_list:
-                filename_parts.append(f"tags-{'-'.join(tag_list)}")
-
-            if not filename_parts:
-                filename_parts.append("all-prompts")
-
-            filename = f"prompta-prompts-{'-'.join(filename_parts)}.json"
-            json_path = output_dir / filename
-
-            # Save JSON file
-            with open(json_path, "w") as f:
-                json.dump(response, f, indent=2, default=str)
-
-            click.echo(f"✅ Downloaded {total} prompt(s) to {json_path}")
-
-            # Show applied filters
-            if filters_applied:
-                click.echo("\nFilters applied:")
-                for key, value in filters_applied.items():
-                    if value:
-                        click.echo(f"  {key}: {value}")
-
-            # Optionally save individual files
-            if not no_content and click.confirm("\nSave individual prompt files?"):
-                prompts_dir = output_dir / "prompts"
-                prompts_dir.mkdir(exist_ok=True)
-
-                with tqdm(total=len(prompts), desc="Saving files") as pbar:
-                    for prompt in prompts:
-                        if prompt.get("current_version", {}).get("content"):
-                            # Create safe filename
-                            safe_name = "".join(
-                                c
-                                for c in prompt["name"]
-                                if c.isalnum() or c in (" ", "-", "_")
-                            ).rstrip()
-                            file_path = prompts_dir / f"{safe_name}.txt"
-
-                            # Add metadata header
-                            metadata = f"""# Prompt: {prompt['name']}
-# Description: {prompt.get('description', 'No description')}
-# Location: {prompt['location']}
-# Tags: {', '.join(prompt.get('tags', [])) if prompt.get('tags') else 'No tags'}
-# Created: {prompt['created_at']}
-# Updated: {prompt['updated_at']}
-# Version: {prompt['current_version']['version_number']}
-
-"""
-                            content = metadata + prompt["current_version"]["content"]
-
-                            with open(file_path, "w") as f:
-                                f.write(content)
-
-                        pbar.update(1)
-
-                click.echo(f"✅ Saved individual files to {prompts_dir}")
-
-    except ImportError:
-        click.echo(
-            "❌ Missing required dependency 'tqdm'. Install with: pip install tqdm",
-            err=True,
-        )
-        raise click.ClickException("Missing dependency")
-    except AuthenticationError as e:
-        click.echo(f"❌ {e}", err=True)
-        raise click.ClickException("Authentication failed")
-    except NotFoundError as e:
-        click.echo(f"❌ {e}", err=True)
-        raise click.ClickException("No prompts found")
-    except PromptaAPIError as e:
-        click.echo(f"❌ {e}", err=True)
-        raise click.ClickException("API request failed")
-
-
-@prompts_group.command("download-project")
-@click.argument("project_name")
-@click.option("--output", "-o", help="Output directory (defaults to current directory)")
-@click.option("--no-content", is_flag=True, help="Exclude prompt content from response")
-@click.option("--api-key", help="API key to use for this request")
-def download_project_command(
-    project_name: str,
-    output: Optional[str],
-    no_content: bool,
-    api_key: Optional[str],
-):
-    """Download all prompts from a specific project."""
-    try:
-        import json
-        from tqdm import tqdm
-
-        client = get_authenticated_client(api_key)
-
-        # Set output directory
-        output_dir = Path(output) if output else Path.cwd()
-        output_dir.mkdir(parents=True, exist_ok=True)
-
-        click.echo(f"📄 Downloading prompts from project '{project_name}'...")
-        response = client.download_prompts_by_project(
-            project_name=project_name, include_content=not no_content
-        )
-
-        prompts = response.get("prompts", [])
-        total = response.get("total", 0)
-
-        if total == 0:
-            click.echo(f"No prompts found in project '{project_name}'.")
-            return
-
-        # Save JSON file
-        filename = f"prompta-project-{project_name}.json"
-        json_path = output_dir / filename
-
-        with open(json_path, "w") as f:
-            json.dump(response, f, indent=2, default=str)
-
-        click.echo(
-            f"✅ Downloaded {total} prompt(s) from project '{project_name}' to {json_path}"
-        )
-
-        # Optionally save individual files
-        if not no_content and click.confirm("\nSave individual prompt files?"):
-            project_dir = output_dir / f"project-{project_name}"
-            project_dir.mkdir(exist_ok=True)
-
-            with tqdm(total=len(prompts), desc="Saving files") as pbar:
-                for prompt in prompts:
-                    if prompt.get("current_version", {}).get("content"):
-                        # Create safe filename
-                        safe_name = "".join(
-                            c
-                            for c in prompt["name"]
-                            if c.isalnum() or c in (" ", "-", "_")
-                        ).rstrip()
-                        file_path = project_dir / f"{safe_name}.txt"
-
-                        # Add metadata header
-                        metadata = f"""# Prompt: {prompt['name']}
-# Description: {prompt.get('description', 'No description')}
-# Location: {prompt['location']}
-# Tags: {', '.join(prompt.get('tags', [])) if prompt.get('tags') else 'No tags'}
-# Created: {prompt['created_at']}
-# Updated: {prompt['updated_at']}
-# Version: {prompt['current_version']['version_number']}
-
-"""
-                        content = metadata + prompt["current_version"]["content"]
-
-                        with open(file_path, "w") as f:
-                            f.write(content)
-
-                    pbar.update(1)
-
-            click.echo(f"✅ Saved individual files to {project_dir}")
-
-    except ImportError:
-        click.echo(
-            "❌ Missing required dependency 'tqdm'. Install with: pip install tqdm",
-            err=True,
-        )
-        raise click.ClickException("Missing dependency")
-    except AuthenticationError as e:
-        click.echo(f"❌ {e}", err=True)
-        raise click.ClickException("Authentication failed")
-    except NotFoundError as e:
-        click.echo(f"❌ {e}", err=True)
-        raise click.ClickException("Project not found")
-    except PromptaAPIError as e:
-        click.echo(f"❌ {e}", err=True)
-        raise click.ClickException("API request failed")
-
-
-@prompts_group.command("download-directory")
-@click.argument("directory_pattern")
-@click.option("--output", "-o", help="Output directory (defaults to current directory)")
-@click.option("--no-content", is_flag=True, help="Exclude prompt content from response")
-@click.option("--api-key", help="API key to use for this request")
-def download_directory_command(
-    directory_pattern: str,
-    output: Optional[str],
-    no_content: bool,
-    api_key: Optional[str],
-):
-    """Download all prompts from a specific directory pattern."""
-    try:
-        import json
-        from tqdm import tqdm
-
-        client = get_authenticated_client(api_key)
-
-        # Set output directory
-        output_dir = Path(output) if output else Path.cwd()
-        output_dir.mkdir(parents=True, exist_ok=True)
-
-        click.echo(
-            f"📄 Downloading prompts from directory pattern '{directory_pattern}'..."
-        )
-        response = client.download_prompts_by_directory(
-            directory=directory_pattern, include_content=not no_content
-        )
-
-        prompts = response.get("prompts", [])
-        total = response.get("total", 0)
-
-        if total == 0:
-            click.echo(
-                f"No prompts found matching directory pattern '{directory_pattern}'."
-            )
-            return
-
-        # Save JSON file
-        safe_dir_name = directory_pattern.replace("/", "-").replace("*", "wildcard")
-        filename = f"prompta-directory-{safe_dir_name}.json"
-        json_path = output_dir / filename
-
-        with open(json_path, "w") as f:
-            json.dump(response, f, indent=2, default=str)
-
-        click.echo(
-            f"✅ Downloaded {total} prompt(s) from directory '{directory_pattern}' to {json_path}"
-        )
-
-        # Optionally save individual files
-        if not no_content and click.confirm("\nSave individual prompt files?"):
-            dir_name = f"directory-{safe_dir_name}"
-            prompts_dir = output_dir / dir_name
-            prompts_dir.mkdir(exist_ok=True)
-
-            with tqdm(total=len(prompts), desc="Saving files") as pbar:
-                for prompt in prompts:
-                    if prompt.get("current_version", {}).get("content"):
-                        # Create safe filename
-                        safe_name = "".join(
-                            c
-                            for c in prompt["name"]
-                            if c.isalnum() or c in (" ", "-", "_")
-                        ).rstrip()
-                        file_path = prompts_dir / f"{safe_name}.txt"
-
-                        # Add metadata header
-                        metadata = f"""# Prompt: {prompt['name']}
-# Description: {prompt.get('description', 'No description')}
-# Location: {prompt['location']}
-# Tags: {', '.join(prompt.get('tags', [])) if prompt.get('tags') else 'No tags'}
-# Created: {prompt['created_at']}
-# Updated: {prompt['updated_at']}
-# Version: {prompt['current_version']['version_number']}
-
-"""
-                        content = metadata + prompt["current_version"]["content"]
-
-                        with open(file_path, "w") as f:
-                            f.write(content)
-
-                    pbar.update(1)
-
-            click.echo(f"✅ Saved individual files to {prompts_dir}")
-
-    except ImportError:
-        click.echo(
-            "❌ Missing required dependency 'tqdm'. Install with: pip install tqdm",
-            err=True,
-        )
-        raise click.ClickException("Missing dependency")
-    except AuthenticationError as e:
-        click.echo(f"❌ {e}", err=True)
-        raise click.ClickException("Authentication failed")
-    except NotFoundError as e:
-        click.echo(f"❌ {e}", err=True)
-        raise click.ClickException("Directory not found")
-    except PromptaAPIError as e:
-        click.echo(f"❌ {e}", err=True)
-        raise click.ClickException("API request failed")
-
-
-@prompts_group.command("download-tags")
-@click.argument("tags")
-@click.option("--output", "-o", help="Output directory (defaults to current directory)")
-@click.option("--no-content", is_flag=True, help="Exclude prompt content from response")
-@click.option("--api-key", help="API key to use for this request")
-def download_tags_command(
-    tags: str,
-    output: Optional[str],
-    no_content: bool,
-    api_key: Optional[str],
-):
-    """Download all prompts matching specific tags (comma-separated)."""
-    try:
-        import json
-        from tqdm import tqdm
-
-        client = get_authenticated_client(api_key)
-
-        # Parse tags
-        tag_list = [tag.strip() for tag in tags.split(",")]
-
-        # Set output directory
-        output_dir = Path(output) if output else Path.cwd()
-        output_dir.mkdir(parents=True, exist_ok=True)
-
-        click.echo(f"📄 Downloading prompts with tags: {', '.join(tag_list)}...")
-        response = client.download_prompts_by_tags(
-            tags=tag_list, include_content=not no_content
-        )
-
-        prompts = response.get("prompts", [])
-        total = response.get("total", 0)
-
-        if total == 0:
-            click.echo(f"No prompts found with tags: {', '.join(tag_list)}.")
-            return
-
-        # Save JSON file
-        filename = f"prompta-tags-{'-'.join(tag_list)}.json"
-        json_path = output_dir / filename
-
-        with open(json_path, "w") as f:
-            json.dump(response, f, indent=2, default=str)
-
-        click.echo(
-            f"✅ Downloaded {total} prompt(s) with tags '{', '.join(tag_list)}' to {json_path}"
-        )
-
-        # Optionally save individual files
-        if not no_content and click.confirm("\nSave individual prompt files?"):
-            tags_dir = output_dir / f"tags-{'-'.join(tag_list)}"
-            tags_dir.mkdir(exist_ok=True)
-
-            with tqdm(total=len(prompts), desc="Saving files") as pbar:
-                for prompt in prompts:
-                    if prompt.get("current_version", {}).get("content"):
-                        # Create safe filename
-                        safe_name = "".join(
-                            c
-                            for c in prompt["name"]
-                            if c.isalnum() or c in (" ", "-", "_")
-                        ).rstrip()
-                        file_path = tags_dir / f"{safe_name}.txt"
-
-                        # Add metadata header
-                        metadata = f"""# Prompt: {prompt['name']}
-# Description: {prompt.get('description', 'No description')}
-# Location: {prompt['location']}
-# Tags: {', '.join(prompt.get('tags', [])) if prompt.get('tags') else 'No tags'}
-# Created: {prompt['created_at']}
-# Updated: {prompt['updated_at']}
-# Version: {prompt['current_version']['version_number']}
-
-"""
-                        content = metadata + prompt["current_version"]["content"]
-
-                        with open(file_path, "w") as f:
-                            f.write(content)
-
-                    pbar.update(1)
-
-            click.echo(f"✅ Saved individual files to {tags_dir}")
-
-    except ImportError:
-        click.echo(
-            "❌ Missing required dependency 'tqdm'. Install with: pip install tqdm",
-            err=True,
-        )
-        raise click.ClickException("Missing dependency")
-    except AuthenticationError as e:
-        click.echo(f"❌ {e}", err=True)
-        raise click.ClickException("Authentication failed")
-    except NotFoundError as e:
-        click.echo(f"❌ {e}", err=True)
-        raise click.ClickException("Tags not found")
     except PromptaAPIError as e:
         click.echo(f"❌ {e}", err=True)
         raise click.ClickException("API request failed")

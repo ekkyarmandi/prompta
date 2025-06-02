@@ -8,7 +8,7 @@ import os
 from pathlib import Path
 
 # Keep the semantic version in sync with pyproject.toml
-__version__: str = "0.2.11"
+__version__: str = "0.1.0"
 
 
 def _ensure_prompta_config_on_import():

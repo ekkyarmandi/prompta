@@ -16,6 +16,32 @@ from ..exceptions import (
 from ..utils.auth import get_authenticated_client
 
 
+def _normalize_prompt_location(location: str) -> str:
+    """
+    Normalize prompt location for file system use.
+
+    Handles:
+    - Tilde replacement (~/path -> ./path)
+    - Preserves leading dots for hidden directories (.cursor/rules/file.md)
+    - Removes explicit "./" prefix only
+
+    Args:
+        location: The original location from the prompt
+
+    Returns:
+        Normalized path suitable for file system operations
+    """
+    if location.startswith("~"):
+        # Replace tilde with current directory prefix
+        location = "./" + location[1:].lstrip("/")
+
+    # Remove explicit "./" prefix but preserve other leading dots
+    if location.startswith("./"):
+        return location[2:]
+
+    return location
+
+
 @click.command()
 @click.option("--query", help="Search term for name or description")
 @click.option("--tags", help="Filter by tags (comma-separated)")
@@ -54,10 +80,8 @@ def projects_command(
             return
 
         # Display projects in a table format
-        click.echo(
-            f"{'ID':<36} {'Name':<30} {'Description':<40} {'Tags':<30} {'Public'}"
-        )
-        click.echo("-" * 146)
+        click.echo(f"{'ID':<36} {'Name':<30} {'Description':<40} {'Tags':<30}")
+        click.echo("-" * 136)
 
         for project in projects:
             project_id = project["id"]
@@ -70,11 +94,7 @@ def projects_command(
                 else ""
             )
             tags_str = ", ".join(project.get("tags", []))[:29]
-            is_public = "Yes" if project.get("is_public", False) else "No"
-
-            click.echo(
-                f"{project_id:<36} {name:<30} {description:<40} {tags_str:<30} {is_public}"
-            )
+            click.echo(f"{project_id:<36} {name:<30} {description:<40} {tags_str:<30}")
 
         # Show pagination info
         if total_pages > 1:
@@ -250,15 +270,11 @@ def _download_project_prompts(client, project_name: str, output: Optional[str]):
     downloaded_count = 0
     for prompt in prompts:
         try:
-            location = prompt["location"]
             content = prompt["current_version"]["content"]
 
-            # Handle tilde replacement for location
-            if location.startswith("~"):
-                # Remove tilde and replace with ./
-                location = "./" + location[1:].lstrip("/")
-
-            file_path = output_dir / location.lstrip("./")
+            # Use the helper function to properly normalize the location
+            normalized_location = _normalize_prompt_location(prompt["location"])
+            file_path = output_dir / normalized_location
 
             # Create parent directories if they don't exist
             file_path.parent.mkdir(parents=True, exist_ok=True)
@@ -296,12 +312,9 @@ def _download_single_prompt(prompt: dict, output: Optional[str]):
     if output:
         output_path = Path(output)
     else:
-        # Handle tilde replacement for location
-        location = prompt["location"]
-        if location.startswith("~"):
-            # Remove tilde and replace with ./
-            location = "./" + location[1:].lstrip("/")
-        output_path = Path(location)
+        # Use the helper function to properly normalize the location
+        normalized_location = _normalize_prompt_location(prompt["location"])
+        output_path = Path(normalized_location)
 
     # Create parent directories if they don't exist
     output_path.parent.mkdir(parents=True, exist_ok=True)
