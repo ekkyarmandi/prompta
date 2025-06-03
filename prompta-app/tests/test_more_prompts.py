@@ -4,8 +4,10 @@ Script to create additional test prompts for search functionality
 """
 
 import httpx
+import os
 
-BASE_URL = "http://localhost:8000"
+API_HOST_URL = os.getenv("PROMPTA_API_BASE_URL", "http://localhost:8000")
+BASE_URL = f"{API_HOST_URL}/api/v1"
 
 
 def get_token():

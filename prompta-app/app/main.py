@@ -19,8 +19,8 @@ app = FastAPI(
     title=settings.app_name,
     version=settings.app_version,
     description="Prompta - Prompt Management API",
-    docs_url="/docs" if settings.debug else None,
-    redoc_url="/redoc" if settings.debug else None,
+    docs_url="/api/v1/docs" if settings.debug else None,
+    redoc_url="/api/v1/redoc" if settings.debug else None,
 )
 
 # Add CORS middleware
@@ -66,7 +66,7 @@ async def internal_error_handler(request: Request, exc: Exception):
 
 
 # Health check endpoint
-@app.get("/health")
+@app.get("/api/v1/health")
 async def health_check():
     """Health check endpoint"""
     return {
@@ -77,7 +77,7 @@ async def health_check():
 
 
 # Root endpoint
-@app.get("/")
+@app.get("/api/v1")
 async def root():
     """Root endpoint with a simple web UI"""
     html_content = """
@@ -95,9 +95,9 @@ async def root():
 
 
 # Include routers
-app.include_router(auth_router)
-app.include_router(prompts_router)
-app.include_router(projects_router)
+app.include_router(auth_router, prefix="/api/v1")
+app.include_router(prompts_router, prefix="/api/v1")
+app.include_router(projects_router, prefix="/api/v1")
 
 
 # Startup event

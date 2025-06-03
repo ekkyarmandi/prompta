@@ -6,8 +6,10 @@ Test script for Prompta API prompt management functionality
 import httpx
 import json
 import pytest
+import os
 
-BASE_URL = "http://localhost:8000"
+API_HOST_URL = os.getenv("PROMPTA_API_BASE_URL", "http://localhost:8000")
+BASE_URL = f"{API_HOST_URL}/api/v1"
 
 
 def setup_user_and_get_token():

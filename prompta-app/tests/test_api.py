@@ -5,8 +5,10 @@ Simple test script to verify the Prompta API authentication functionality
 
 import httpx
 import json
+import os
 
-BASE_URL = "http://localhost:8000"
+API_HOST_URL = os.getenv("PROMPTA_API_BASE_URL", "http://localhost:8000")
+BASE_URL = f"{API_HOST_URL}/api/v1"
 
 
 def test_health():

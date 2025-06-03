@@ -27,7 +27,7 @@ def test_app_creation():
 
 def test_health_endpoint(client):
     """Test the health check endpoint"""
-    response = client.get("/health")
+    response = client.get("/api/v1/health")
     assert response.status_code == 200
     data = response.json()
 
@@ -38,7 +38,7 @@ def test_health_endpoint(client):
 
 def test_root_endpoint(client):
     """Test the root endpoint"""
-    response = client.get("/")
+    response = client.get("/api/v1/")
     assert response.status_code == 200
     data = response.json()
 
@@ -65,7 +65,7 @@ def test_request_timing_middleware(client):
         # We need enough side_effect values for all time.time() calls
         mock_time.side_effect = [100.0, 100.5, 101.0, 101.5, 102.0, 102.5]
 
-        response = client.get("/health")
+        response = client.get("/api/v1/health")
         assert response.status_code == 200
 
         # Check that X-Process-Time header was added

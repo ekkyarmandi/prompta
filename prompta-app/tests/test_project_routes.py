@@ -17,7 +17,7 @@ from auth.dependencies import get_current_user_flexible
 
 # Create test app with dependency overrides
 app = FastAPI()
-app.include_router(router)
+app.include_router(router, prefix="/api/v1")
 
 # Test data
 test_user = Mock(spec=User)
