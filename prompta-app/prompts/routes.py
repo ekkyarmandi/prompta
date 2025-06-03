@@ -2,11 +2,14 @@ from typing import List, Optional
 import math
 import io
 import zipfile
-from fastapi import APIRouter, Depends, HTTPException, status, Query, Response
-from fastapi.responses import StreamingResponse
+from fastapi import APIRouter, Depends, HTTPException, status, Query, Response, Request
+from fastapi.responses import StreamingResponse, HTMLResponse
+from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
+from pathlib import Path
 
 from app.database import get_db
+from app.config import settings
 from auth.dependencies import get_current_user_flexible, get_current_user_optional
 from auth.models import User
 from .models import Prompt, PromptVersion
@@ -27,13 +30,29 @@ from .schemas import (
 )
 from .services import PromptService
 
+# Add these lines for local templates instance
+BASE_DIR = Path(__file__).resolve().parent.parent
+templates = Jinja2Templates(directory=Path(BASE_DIR, "templates"))
 
 router = APIRouter(prefix="/prompts", tags=["prompts"])
 
 
-@router.post("/", response_model=PromptResponse, status_code=status.HTTP_201_CREATED)
+# UI ROUTE
+@router.get("/{prompt_id_page}", response_class=HTMLResponse, include_in_schema=False)
+async def prompt_detail_page(request: Request, prompt_id_page: str):
+    # Pass prompt_id_page, JS on client side will use it to fetch data
+    return templates.TemplateResponse(
+        "prompts/detail.html",
+        {"request": request, "prompt_id": prompt_id_page, "settings": settings},
+    )
+
+
+# API ROUTES
 @router.post(
-    "",
+    "/api/", response_model=PromptResponse, status_code=status.HTTP_201_CREATED
+)
+@router.post(
+    "/api",
     response_model=PromptResponse,
     status_code=status.HTTP_201_CREATED,
     include_in_schema=False,
@@ -51,8 +70,8 @@ async def create_prompt(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
 
-@router.get("/", response_model=PromptListResponse)
-@router.get("", response_model=PromptListResponse, include_in_schema=False)
+@router.get("/api/", response_model=PromptListResponse)
+@router.get("/api", response_model=PromptListResponse, include_in_schema=False)
 async def list_prompts(
     query: Optional[str] = Query(
         None, description="Search term for name, description, or location"
@@ -93,7 +112,7 @@ async def list_prompts(
     )
 
 
-@router.get("/search", response_model=PromptListResponse)
+@router.get("/api/search", response_model=PromptListResponse)
 async def search_prompts_by_content(
     q: str = Query(..., description="Search term for prompt content"),
     page: int = Query(1, ge=1, description="Page number"),
@@ -126,7 +145,7 @@ async def search_prompts_by_content(
     )
 
 
-@router.get("/{prompt_id}", response_model=PromptResponse)
+@router.get("/api/{prompt_id}", response_model=PromptResponse)
 async def get_prompt(
     prompt_id: str,
     db: Session = Depends(get_db),
@@ -148,7 +167,7 @@ async def get_prompt(
     return prompt
 
 
-@router.put("/{prompt_id}", response_model=PromptResponse)
+@router.put("/api/{prompt_id}", response_model=PromptResponse)
 async def update_prompt(
     prompt_id: str,
     prompt_data: PromptUpdate,
@@ -167,7 +186,7 @@ async def update_prompt(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
 
-@router.delete("/{prompt_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/api/{prompt_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_prompt(
     prompt_id: str,
     current_user: User = Depends(get_current_user_flexible),
@@ -183,7 +202,7 @@ async def delete_prompt(
 
 # Version Management
 @router.post(
-    "/{prompt_id}/versions",
+    "/api/{prompt_id}/versions",
     response_model=PromptVersionResponse,
     status_code=status.HTTP_201_CREATED,
 )
@@ -202,7 +221,7 @@ async def create_version(
     return version
 
 
-@router.get("/{prompt_id}/versions", response_model=PromptVersionListResponse)
+@router.get("/api/{prompt_id}/versions", response_model=PromptVersionListResponse)
 async def list_versions(
     prompt_id: str,
     current_user: User = Depends(get_current_user_flexible),
@@ -214,7 +233,7 @@ async def list_versions(
 
 
 @router.get(
-    "/{prompt_id}/versions/{version_number}", response_model=PromptVersionResponse
+    "/api/{prompt_id}/versions/{version_number}", response_model=PromptVersionResponse
 )
 async def get_version(
     prompt_id: str,
@@ -232,7 +251,7 @@ async def get_version(
 
 
 @router.put(
-    "/{prompt_id}/versions/{version_number}", response_model=PromptVersionResponse
+    "/api/{prompt_id}/versions/{version_number}", response_model=PromptVersionResponse
 )
 async def update_version(
     prompt_id: str,
@@ -257,7 +276,7 @@ async def update_version(
 
 
 @router.post(
-    "/{prompt_id}/restore/{version_number}", response_model=PromptVersionResponse
+    "/api/{prompt_id}/restore/{version_number}", response_model=PromptVersionResponse
 )
 async def restore_version(
     prompt_id: str,
@@ -283,7 +302,7 @@ async def restore_version(
     return new_version
 
 
-@router.get("/{prompt_id}/diff/{version1}/{version2}")
+@router.get("/api/{prompt_id}/diff/{version1}/{version2}")
 async def compare_versions(
     prompt_id: str,
     version1: int,

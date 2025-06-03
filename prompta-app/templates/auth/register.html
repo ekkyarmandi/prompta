@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Register - {{ settings.app_name }}</title>
+    <link rel="stylesheet" href="/static/style.css" />
+  </head>
+  <body>
+    <header>
+      <h1>Register for {{ settings.app_name }}</h1>
+      <nav>
+        <ul>
+          <li><a href="/">Home</a></li>
+          <li><a href="/auth/login">Login</a></li>
+        </ul>
+      </nav>
+    </header>
+
+    <main>
+      <form id="registerForm">
+        <div>
+          <label for="username">Username:</label>
+          <input type="text" id="username" name="username" required />
+        </div>
+        <div>
+          <label for="email">Email:</label>
+          <input type="email" id="email" name="email" required />
+        </div>
+        <div>
+          <label for="password">Password:</label>
+          <input type="password" id="password" name="password" required />
+        </div>
+        <button type="submit">Register</button>
+      </form>
+      <p id="registerMessage"></p>
+    </main>
+
+    <footer>
+      <p>&copy; 2024 Prompta. All rights reserved.</p>
+    </footer>
+
+    <script>
+      document.getElementById("registerForm").addEventListener("submit", async function (event) {
+        event.preventDefault();
+        const formData = new FormData(this);
+        const data = Object.fromEntries(formData.entries());
+        const messageElement = document.getElementById("registerMessage");
+
+        try {
+          const response = await fetch("/auth/register", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify(data),
+          });
+
+          const result = await response.json();
+
+          if (response.status === 201) {
+            messageElement.textContent = "Registration successful! You can now login.";
+            messageElement.style.color = "green";
+            // Optionally redirect to login page
+            // window.location.href = '/auth/login';
+          } else {
+            messageElement.textContent = "Registration failed: " + (result.detail || "Unknown error");
+            messageElement.style.color = "red";
+          }
+        } catch (error) {
+          messageElement.textContent = "An error occurred: " + error.message;
+          messageElement.style.color = "red";
+        }
+      });
+    </script>
+  </body>
+</html>

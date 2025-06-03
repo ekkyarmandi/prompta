@@ -1,11 +1,15 @@
 from typing import List, Optional
 import logging
 import math
+from pathlib import Path
 
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
+from fastapi.responses import HTMLResponse
+from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
 from app.database import get_db
+from app.config import settings
 from auth.dependencies import get_current_user_flexible
 from auth.models import User
 from .models import Project
@@ -17,8 +21,38 @@ from .schemas import (
 )
 from .services import ProjectService
 
+# --- Add these lines for local templates instance ---
+BASE_DIR = Path(__file__).resolve().parent.parent  # MODIFIED: Corrected path
+templates = Jinja2Templates(directory=Path(BASE_DIR, "templates"))
+# --- End of new lines ---
 
 router = APIRouter(prefix="/projects", tags=["projects"])
+
+
+# --- UI ROUTES --- Add these below router initialization
+@router.get(
+    "/", response_class=HTMLResponse, include_in_schema=False
+)  # Existing API route is below
+async def list_projects_page(request: Request):
+    return templates.TemplateResponse(
+        "projects/list.html", {"request": request, "settings": settings}
+    )
+
+
+@router.get(
+    "/{project_id_page}", response_class=HTMLResponse, include_in_schema=False
+)  # Avoid conflict with API path param name
+async def project_detail_page(
+    request: Request, project_id_page: str
+):  # Use different param name
+    # We pass project_id_page to the template, JS on client side will use it to fetch data
+    return templates.TemplateResponse(
+        "projects/detail.html",
+        {"request": request, "project_id": project_id_page, "settings": settings},
+    )
+
+
+# --- END UI ROUTES ---
 
 
 @router.post("/", response_model=ProjectResponse, status_code=status.HTTP_201_CREATED)
@@ -41,7 +75,7 @@ async def create_project(
         ) from e
 
 
-@router.get("/", response_model=ProjectListResponse)
+@router.get("/api", response_model=ProjectListResponse)
 async def list_projects(
     query: Optional[str] = Query(
         None, description="Search term for name or description"
@@ -66,7 +100,7 @@ async def list_projects(
     )
 
 
-@router.get("/{project_id}", response_model=ProjectResponse)
+@router.get("/api/{project_id}", response_model=ProjectResponse)
 async def get_project(
     project_id: str,
     current_user: User = Depends(get_current_user_flexible),
@@ -81,7 +115,7 @@ async def get_project(
     return project
 
 
-@router.get("/by-name/{project_name}", response_model=ProjectResponse)
+@router.get("/api/by-name/{project_name}", response_model=ProjectResponse)
 async def get_project_by_name(
     project_name: str,
     current_user: User = Depends(get_current_user_flexible),
@@ -96,7 +130,7 @@ async def get_project_by_name(
     return project
 
 
-@router.put("/{project_id}", response_model=ProjectResponse)
+@router.put("/api/{project_id}", response_model=ProjectResponse)
 async def update_project(
     project_id: str,
     project_data: ProjectUpdate,
@@ -123,7 +157,7 @@ async def update_project(
         ) from e
 
 
-@router.delete("/{project_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/api/{project_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_project(
     project_id: str,
     current_user: User = Depends(get_current_user_flexible),

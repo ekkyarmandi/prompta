@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Projects - {{ settings.app_name }}</title>
+    <link rel="stylesheet" href="/static/style.css" />
+  </head>
+  <body>
+    <header>
+      <h1>Projects</h1>
+      <nav>
+        <ul>
+          <li><a href="/">Home</a></li>
+          <li><a href="/auth/login">Login</a></li>
+          <li><a href="/auth/register">Register</a></li>
+          <li><a href="/auth/profile">Profile</a></li>
+        </ul>
+      </nav>
+    </header>
+
+    <main>
+      <h2>Your Projects</h2>
+      <div id="projectList">
+        <!-- Projects will be listed here by script -->
+      </div>
+
+      <h3>Create New Project</h3>
+      <form id="createProjectForm">
+        <div>
+          <label for="projectName">Project Name:</label>
+          <input type="text" id="projectName" name="name" required />
+        </div>
+        <div>
+          <label for="projectDescription">Description:</label>
+          <textarea id="projectDescription" name="description"></textarea>
+        </div>
+        <button type="submit">Create Project</button>
+      </form>
+      <p id="createProjectMessage"></p>
+    </main>
+
+    <footer>
+      <p>&copy; 2024 Prompta. All rights reserved.</p>
+    </footer>
+
+    <script>
+      async function fetchProjects() {
+        const projectListDiv = document.getElementById("projectList");
+        const token = localStorage.getItem("accessToken");
+        if (!token) {
+          projectListDiv.innerHTML = "<p>Please login to see your projects.</p>";
+          return;
+        }
+
+        try {
+          const response = await fetch("/projects/api/", {
+            headers: {
+              Authorization: "Bearer " + token,
+            },
+          });
+          if (response.ok) {
+            const data = await response.json();
+            if (data.projects && data.projects.length > 0) {
+              let html = "<ul>";
+              data.projects.forEach((project) => {
+                html += `<li><a href="/projects/${project.id}">${project.name}</a> - ${project.description || ""}</li>`;
+              });
+              html += "</ul>";
+              projectListDiv.innerHTML = html;
+            } else {
+              projectListDiv.innerHTML = "<p>No projects found.</p>";
+            }
+          } else {
+            const error = await response.json();
+            projectListDiv.innerHTML = `<p>Error fetching projects: ${error.detail || response.statusText}</p>`;
+          }
+        } catch (error) {
+          projectListDiv.innerHTML = `<p>Error fetching projects: ${error.message}</p>`;
+        }
+      }
+
+      document.getElementById("createProjectForm").addEventListener("submit", async function (event) {
+        event.preventDefault();
+        const formData = new FormData(this);
+        const data = Object.fromEntries(formData.entries());
+        const messageElement = document.getElementById("createProjectMessage");
+        const token = localStorage.getItem("accessToken");
+
+        if (!token) {
+          messageElement.textContent = "Please login to create a project.";
+          messageElement.style.color = "red";
+          return;
+        }
+
+        try {
+          const response = await fetch("/projects/api/", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: "Bearer " + token,
+            },
+            body: JSON.stringify(data),
+          });
+          const result = await response.json();
+          if (response.status === 201) {
+            messageElement.textContent = "Project created successfully!";
+            messageElement.style.color = "green";
+            fetchProjects(); // Refresh the list
+            this.reset(); // Clear the form
+          } else {
+            messageElement.textContent = "Error creating project: " + (result.detail || "Unknown error");
+            messageElement.style.color = "red";
+          }
+        } catch (error) {
+          messageElement.textContent = "An error occurred: " + error.message;
+          messageElement.style.color = "red";
+        }
+      });
+
+      fetchProjects(); // Load projects when page loads
+    </script>
+  </body>
+</html>

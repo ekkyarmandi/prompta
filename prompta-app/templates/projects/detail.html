@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Project Details - {{ settings.app_name }}</title>
+    <link rel="stylesheet" href="/static/style.css" />
+    <style>
+      /* Additional styles for this page */
+      .prompt-card {
+        border: 1px solid #ccc;
+        padding: 10px;
+        margin-bottom: 10px;
+        border-radius: 5px;
+      }
+      .prompt-card h4 {
+        margin-top: 0;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>Project Details</h1>
+      <nav>
+        <ul>
+          <li><a href="/">Home</a></li>
+          <li><a href="/projects">All Projects</a></li>
+          <li><a href="/auth/profile">Profile</a></li>
+        </ul>
+      </nav>
+    </header>
+
+    <main>
+      <div id="projectDetails">
+        <!-- Project details will be loaded here -->
+      </div>
+      <p id="projectMessage"></p>
+
+      <hr />
+
+      <h2>Prompts in this Project</h2>
+      <div id="promptList">
+        <!-- Prompts will be listed here -->
+      </div>
+
+      <h3>Add New Prompt to Project</h3>
+      <form id="createPromptForm">
+        <input type="hidden" id="projectId" name="project_id" />
+        <div>
+          <label for="promptName">Prompt Name:</label>
+          <input type="text" id="promptName" name="name" required />
+        </div>
+        <div>
+          <label for="promptDescription">Description:</label>
+          <textarea id="promptDescription" name="description"></textarea>
+        </div>
+        <div>
+          <label for="promptContent">Content:</label>
+          <textarea id="promptContent" name="content" rows="5" required></textarea>
+        </div>
+        <div>
+          <label for="promptTags">Tags (comma-separated):</label>
+          <input type="text" id="promptTags" name="tags" />
+        </div>
+        <button type="submit">Add Prompt</button>
+      </form>
+      <p id="createPromptMessage"></p>
+    </main>
+
+    <footer>
+      <p>&copy; 2024 Prompta. All rights reserved.</p>
+    </footer>
+
+    <script>
+      const projectId = window.location.pathname.split("/").pop();
+      document.getElementById("projectId").value = projectId;
+      const token = localStorage.getItem("accessToken");
+
+      async function fetchProjectDetails() {
+        const detailsDiv = document.getElementById("projectDetails");
+        const projectMessage = document.getElementById("projectMessage");
+        if (!token) {
+          detailsDiv.innerHTML = "<p>Please login to see project details.</p>";
+          return;
+        }
+
+        try {
+          const response = await fetch(`/projects/api/${projectId}`, {
+            headers: {
+              Authorization: "Bearer " + token,
+            },
+          });
+          if (response.ok) {
+            const project = await response.json();
+            detailsDiv.innerHTML = `
+                        <h2>${project.name}</h2>
+                        <p><strong>ID:</strong> ${project.id}</p>
+                        <p><strong>Description:</strong> ${project.description || "N/A"}</p>
+                        <p><strong>Created At:</strong> ${new Date(project.created_at).toLocaleString()}</p>
+                        <p><strong>Updated At:</strong> ${new Date(project.updated_at).toLocaleString()}</p>
+                    `;
+          } else {
+            const error = await response.json();
+            projectMessage.textContent = `Error fetching project: ${error.detail || response.statusText}`;
+            projectMessage.style.color = "red";
+          }
+        } catch (error) {
+          projectMessage.textContent = `Error fetching project: ${error.message}`;
+          projectMessage.style.color = "red";
+        }
+      }
+
+      async function fetchPromptsForProject() {
+        const promptListDiv = document.getElementById("promptList");
+        if (!token) {
+          promptListDiv.innerHTML = "<p>Please login to see prompts.</p>";
+          return;
+        }
+        try {
+          // Assuming /prompts?project_name=PROJECT_NAME endpoint or similar
+          // For now, let's fetch all prompts and filter, or assume an endpoint like /projects/{project_id}/prompts
+          // The current API structure from routes.py for prompts shows /prompts/download?project_name=...
+          // but for displaying, we might need a more direct /prompts?project_id=... or /projects/{id}/prompts endpoint.
+          // Let's use the existing download endpoint and adapt for now, or make a note to add a better one.
+
+          // We need Project Name for current API, let's get it from the project details call or add it.
+          const projectDetailsResponse = await fetch(`/projects/api/${projectId}`, { headers: { Authorization: "Bearer " + token } });
+          if (!projectDetailsResponse.ok) {
+            promptListDiv.innerHTML = "<p>Could not fetch project details to get project name for prompts.</p>";
+            return;
+          }
+          const projectData = await projectDetailsResponse.json();
+          const projectName = projectData.name;
+
+          const response = await fetch(`/prompts/download?project_name=${encodeURIComponent(projectName)}&include_content=true&format=json`, {
+            headers: {
+              Authorization: "Bearer " + token,
+            },
+          });
+
+          if (response.ok) {
+            const data = await response.json();
+            if (data.prompts && data.prompts.length > 0) {
+              let html = "";
+              data.prompts.forEach((prompt) => {
+                html += `
+                                <div class="prompt-card">
+                                    <h4>${prompt.name} (v${prompt.current_version_number})</h4>
+                                    <p><strong>Description:</strong> ${prompt.description || "N/A"}</p>
+                                    <p><strong>Location:</strong> ${prompt.location || "N/A"}</p>
+                                    <p><strong>Tags:</strong> ${prompt.tags ? prompt.tags.join(", ") : "None"}</p>
+                                    <p><strong>Content:</strong></p>
+                                    <pre>${prompt.current_version ? prompt.current_version.content : "N/A"}</pre>
+                                    <a href="/prompts/${prompt.id}">View/Edit Prompt Details</a>
+                                </div>
+                            `;
+              });
+              promptListDiv.innerHTML = html;
+            } else {
+              promptListDiv.innerHTML = "<p>No prompts found in this project.</p>";
+            }
+          } else {
+            const error = await response.json();
+            promptListDiv.innerHTML = `<p>Error fetching prompts: ${error.detail || response.statusText}</p>`;
+          }
+        } catch (error) {
+          promptListDiv.innerHTML = `<p>Error fetching prompts: ${error.message}</p>`;
+        }
+      }
+
+      document.getElementById("createPromptForm").addEventListener("submit", async function (event) {
+        event.preventDefault();
+        const formData = new FormData(this);
+        const data = {
+          name: formData.get("name"),
+          description: formData.get("description"),
+          content: formData.get("content"),
+          project_id: formData.get("project_id"), // This should be handled by the backend based on the project context
+          tags: formData.get("tags")
+            ? formData
+                .get("tags")
+                .split(",")
+                .map((tag) => tag.trim())
+            : [],
+        };
+        const messageElement = document.getElementById("createPromptMessage");
+
+        if (!token) {
+          messageElement.textContent = "Please login to add a prompt.";
+          messageElement.style.color = "red";
+          return;
+        }
+
+        try {
+          // The PromptCreate schema expects project_id and content for the initial version.
+          const createData = {
+            name: data.name,
+            description: data.description,
+            project_id: data.project_id,
+            tags: data.tags,
+            initial_version_content: data.content, // Passed as initial_version_content
+          };
+
+          const response = await fetch("/prompts/", {
+            // Endpoint for creating prompts
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: "Bearer " + token,
+            },
+            body: JSON.stringify(createData),
+          });
+          const result = await response.json();
+          if (response.status === 201) {
+            messageElement.textContent = "Prompt added successfully!";
+            messageElement.style.color = "green";
+            fetchPromptsForProject(); // Refresh the list
+            this.reset();
+          } else {
+            messageElement.textContent = "Error adding prompt: " + (result.detail || "Unknown error");
+            messageElement.style.color = "red";
+          }
+        } catch (error) {
+          messageElement.textContent = "An error occurred: " + error.message;
+          messageElement.style.color = "red";
+        }
+      });
+
+      // Initial data fetch
+      if (token) {
+        fetchProjectDetails();
+        fetchPromptsForProject();
+      } else {
+        document.getElementById("projectDetails").innerHTML = '<p><a href="/auth/login">Login</a> to view project details and prompts.</p>';
+        document.getElementById("promptList").innerHTML = "";
+      }
+    </script>
+  </body>
+</html>

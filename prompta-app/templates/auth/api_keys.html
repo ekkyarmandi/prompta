@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>API Key Management - {{ settings.app_name }}</title>
+    <link rel="stylesheet" href="/static/style.css" />
+    <style>
+      .key-card {
+        border: 1px solid #ccc;
+        padding: 10px;
+        margin-bottom: 10px;
+        border-radius: 5px;
+      }
+      .key-card .api-key-value {
+        background-color: #f0f0f0;
+        padding: 5px;
+        border-radius: 3px;
+        font-family: monospace;
+        display: inline-block;
+        margin-top: 5px;
+        color: #d9534f; /* Make it stand out - this is sensitive */
+      }
+      .key-card .api-key-value.hidden {
+        color: transparent;
+        background-color: #ddd;
+        user-select: none;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>API Key Management</h1>
+      <nav>
+        <ul>
+          <li><a href="/">Home</a></li>
+          <li><a href="/projects">Projects</a></li>
+          <li><a href="/auth/profile">Profile</a></li>
+        </ul>
+      </nav>
+    </header>
+
+    <main>
+      <h2>Your API Keys</h2>
+      <div id="apiKeyList">
+        <!-- API Keys will be listed here -->
+      </div>
+      <p id="apiKeyMessage"></p>
+
+      <hr />
+      <h3>Create New API Key</h3>
+      <form id="createApiKeyForm">
+        <div>
+          <label for="apiKeyName">Key Name (e.g., 'My CLI Key'):</label>
+          <input type="text" id="apiKeyName" name="name" required />
+        </div>
+        <div>
+          <label for="apiKeyExpires">Expires At (optional, YYYY-MM-DDTHH:MM:SS):</label>
+          <input type="datetime-local" id="apiKeyExpires" name="expires_at" />
+        </div>
+        <button type="submit">Create API Key</button>
+      </form>
+      <p id="createApiKeyMessage"></p>
+      <div id="newApiKeyDisplay" style="margin-top: 10px; padding: 10px; border: 1px solid green; display: none">
+        <strong>New API Key Created!</strong> Copy this key now, you won't see it again:
+        <p id="newKeyValue" class="api-key-value" style="cursor: pointer" title="Click to copy"></p>
+      </div>
+    </main>
+
+    <footer>
+      <p>&copy; 2024 Prompta. All rights reserved.</p>
+    </footer>
+
+    <script>
+      const token = localStorage.getItem("accessToken");
+      const apiKeyMessage = document.getElementById("apiKeyMessage");
+      const createApiKeyMessage = document.getElementById("createApiKeyMessage");
+      const newApiKeyDisplay = document.getElementById("newApiKeyDisplay");
+      const newKeyValueElement = document.getElementById("newKeyValue");
+
+      newKeyValueElement.addEventListener("click", () => {
+        navigator.clipboard
+          .writeText(newKeyValueElement.textContent)
+          .then(() => alert("API Key copied to clipboard!"))
+          .catch((err) => alert("Failed to copy API key: " + err));
+      });
+
+      async function fetchApiKeys() {
+        if (!token) {
+          document.getElementById("apiKeyList").innerHTML = '<p>Please <a href="/auth/login">login</a> to manage API keys.</p>';
+          document.getElementById("createApiKeyForm").style.display = "none";
+          return;
+        }
+
+        try {
+          const response = await fetch("/auth/api-keys", {
+            headers: { Authorization: "Bearer " + token },
+          });
+
+          if (response.ok) {
+            const data = await response.json();
+            const apiKeyListDiv = document.getElementById("apiKeyList");
+            if (data.api_keys && data.api_keys.length > 0) {
+              let html = "";
+              data.api_keys.forEach((key) => {
+                html += `
+                                <div class="key-card">
+                                    <h4>${key.name}</h4>
+                                    <p><strong>ID:</strong> ${key.id}</p>
+                                    <p><strong>Prefix:</strong> ${key.prefix}</p>
+                                    <p><strong>Created At:</strong> ${new Date(key.created_at).toLocaleString()}</p>
+                                    <p><strong>Expires At:</strong> ${key.expires_at ? new Date(key.expires_at).toLocaleString() : "Never"}</p>
+                                    <p><strong>Last Used:</strong> ${key.last_used_at ? new Date(key.last_used_at).toLocaleString() : "Never"}</p>
+                                    <p><strong>Active:</strong> ${key.is_active}</p>
+                                    ${key.is_active ? `<button onclick="deactivateApiKey('${key.id}')">Deactivate</button>` : "<p><em>Inactive</em></p>"}
+                                </div>
+                            `;
+              });
+              apiKeyListDiv.innerHTML = html;
+            } else {
+              apiKeyListDiv.innerHTML = "<p>No API keys found.</p>";
+            }
+          } else {
+            const error = await response.json();
+            apiKeyMessage.textContent = `Error fetching API keys: ${error.detail || response.statusText}`;
+            apiKeyMessage.style.color = "red";
+          }
+        } catch (error) {
+          apiKeyMessage.textContent = `Error fetching API keys: ${error.message}`;
+          apiKeyMessage.style.color = "red";
+        }
+      }
+
+      document.getElementById("createApiKeyForm").addEventListener("submit", async function (event) {
+        event.preventDefault();
+        if (!token) {
+          createApiKeyMessage.textContent = "Please login to create API keys.";
+          createApiKeyMessage.style.color = "red";
+          return;
+        }
+
+        const formData = new FormData(this);
+        const name = formData.get("name");
+        const expires_at_value = formData.get("expires_at");
+
+        const data = { name };
+        if (expires_at_value) {
+          data.expires_at = new Date(expires_at_value).toISOString();
+        }
+
+        try {
+          const response = await fetch("/auth/api-keys", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: "Bearer " + token,
+            },
+            body: JSON.stringify(data),
+          });
+          const result = await response.json();
+          if (response.status === 201) {
+            createApiKeyMessage.textContent = "API Key created successfully!";
+            createApiKeyMessage.style.color = "green";
+            newKeyValueElement.textContent = result.key; // Display the key
+            newApiKeyDisplay.style.display = "block";
+            fetchApiKeys(); // Refresh API key list
+            this.reset();
+          } else {
+            createApiKeyMessage.textContent = `Error creating API key: ${result.detail || "Unknown error"}`;
+            createApiKeyMessage.style.color = "red";
+            newApiKeyDisplay.style.display = "none";
+          }
+        } catch (error) {
+          createApiKeyMessage.textContent = `An error occurred: ${error.message}`;
+          createApiKeyMessage.style.color = "red";
+          newApiKeyDisplay.style.display = "none";
+        }
+      });
+
+      async function deactivateApiKey(keyId) {
+        if (!token || !confirm("Are you sure you want to deactivate this API key?")) {
+          return;
+        }
+        apiKeyMessage.textContent = ""; // Clear previous messages
+
+        try {
+          const response = await fetch(`/auth/api-keys/${keyId}`, {
+            method: "DELETE", // Backend uses DELETE to deactivate
+            headers: { Authorization: "Bearer " + token },
+          });
+
+          if (response.status === 204) {
+            apiKeyMessage.textContent = "API Key deactivated successfully.";
+            apiKeyMessage.style.color = "green";
+            fetchApiKeys(); // Refresh API key list
+          } else {
+            const error = await response.json(); // Might not have body for 204, but try for others
+            apiKeyMessage.textContent = `Error deactivating API key: ${error ? error.detail : response.statusText}`;
+            apiKeyMessage.style.color = "red";
+          }
+        } catch (error) {
+          apiKeyMessage.textContent = `An error occurred: ${error.message}`;
+          apiKeyMessage.style.color = "red";
+        }
+      }
+
+      // Initial fetch
+      fetchApiKeys();
+    </script>
+  </body>
+</html>

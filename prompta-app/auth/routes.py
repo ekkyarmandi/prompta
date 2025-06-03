@@ -1,7 +1,10 @@
 from datetime import timedelta
 from typing import List
+from pathlib import Path
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Request
+from fastapi.responses import HTMLResponse
+from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 
@@ -27,6 +30,18 @@ from .security import (
 )
 from .dependencies import get_current_user_from_token, get_current_user_flexible
 
+# Attempt to import templates and settings from app.main
+# This might need adjustment if circular dependencies arise
+# from app.main import templates
+
+# --- Add these lines for local templates instance ---
+BASE_DIR = Path(__file__).resolve().parent.parent  # Corrected path
+templates_directory_path_str = str(Path(BASE_DIR, "templates"))
+print(
+    f"DEBUG: auth/routes.py - Initializing Jinja2Templates with directory: {templates_directory_path_str}"
+)  # DEBUG LINE
+templates = Jinja2Templates(directory=templates_directory_path_str)
+# --- End of new lines ---
 
 router = APIRouter(prefix="/auth", tags=["authentication"])
 
@@ -295,3 +310,51 @@ async def delete_api_key(
     db.commit()
 
     return None
+
+
+@router.get("/login", response_class=HTMLResponse, include_in_schema=False)
+async def login_page(request: Request):
+    print(
+        f"DEBUG: auth/routes.py login_page - templates search path: {templates.env.loader.searchpath}"
+    )  # DEBUG LINE
+    return templates.TemplateResponse(
+        "auth/login.html", {"request": request, "settings": settings}
+    )
+
+
+@router.get("/register", response_class=HTMLResponse, include_in_schema=False)
+async def register_page(request: Request):
+    print(
+        f"DEBUG: auth/routes.py register_page - templates search path: {templates.env.loader.searchpath}"
+    )  # DEBUG LINE
+    return templates.TemplateResponse(
+        "auth/register.html", {"request": request, "settings": settings}
+    )
+
+
+@router.get(
+    "/profile",
+    response_class=HTMLResponse,
+    name="profile_page",
+    include_in_schema=False,
+)
+async def user_profile_page(request: Request):
+    return templates.TemplateResponse(
+        "profile/view.html", {"request": request, "settings": settings}
+    )
+
+
+# --- Route for the API Key Management UI ---
+@router.get(
+    "/manage-api-keys",
+    response_class=HTMLResponse,
+    name="manage_api_keys_page",
+    include_in_schema=False,
+)
+async def manage_api_keys_page(request: Request):
+    return templates.TemplateResponse(
+        "auth/api_keys.html", {"request": request, "settings": settings}
+    )
+
+
+# --- End of new GET routes ---

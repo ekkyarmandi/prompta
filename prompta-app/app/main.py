@@ -1,6 +1,9 @@
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, HTMLResponse
+from fastapi.templating import Jinja2Templates
+from fastapi.staticfiles import StaticFiles
+from pathlib import Path
 import time
 import logging
 
@@ -22,6 +25,17 @@ app = FastAPI(
     docs_url="/docs" if settings.debug else None,
     redoc_url="/redoc" if settings.debug else None,
 )
+
+# Add these lines
+BASE_DIR = Path(__file__).resolve().parent.parent  # This should point to prompta-app
+# Ensure static and templates directories exist, create if not (handled by file creation later)
+static_dir = Path(BASE_DIR, "static")
+templates_dir = Path(BASE_DIR, "templates")
+static_dir.mkdir(parents=True, exist_ok=True)
+templates_dir.mkdir(parents=True, exist_ok=True)
+
+app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
+templates = Jinja2Templates(directory=str(templates_dir))
 
 # Add CORS middleware
 app.add_middleware(
@@ -77,16 +91,13 @@ async def health_check():
 
 
 # Root endpoint
-@app.get("/")
-async def root():
+@app.get("/", response_class=HTMLResponse)
+async def root(request: Request):
     """Root endpoint with API information"""
-    return {
-        "message": "Welcome to Prompta API",
-        "version": settings.app_version,
-        "docs_url": (
-            "/docs" if settings.debug else "Documentation disabled in production"
-        ),
-    }
+    return templates.TemplateResponse(
+        "index.html",
+        {"request": request, "message": "Welcome to Prompta UI!", "settings": settings},
+    )
 
 
 # Include routers
