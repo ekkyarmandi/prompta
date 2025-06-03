@@ -1,0 +1,12 @@
+{% extends "base.html" %} {% block content %}
+<h1>User Profile</h1>
+<form id="profile-form" hx-put="/auth/me" hx-target="#main-content" hx-swap="outerHTML">
+  <label for="username">Username</label>
+  <input type="text" id="username" name="username" value="{{ user.username }}" required />
+
+  <label for="email">Email</label>
+  <input type="email" id="email" name="email" value="{{ user.email }}" required />
+
+  <button type="submit">Update Profile</button>
+</form>
+{% endblock %}

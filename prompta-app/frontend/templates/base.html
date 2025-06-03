@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Prompta App</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="stylesheet" href="/static/style.css" />
+    <script src="/static/htmx.min.js"></script>
+  </head>
+  <body>
+    <nav class="navbar">
+      <div class="container">
+        <a href="/" class="logo">Prompta</a>
+        <ul class="nav-links">
+          <li><a href="/projects" hx-get="/projects" hx-target="#main-content" hx-push-url="true">Projects</a></li>
+          <li><a href="/prompts" hx-get="/prompts" hx-target="#main-content" hx-push-url="true">Prompts</a></li>
+          <li><a href="/api-keys" hx-get="/api-keys" hx-target="#main-content" hx-push-url="true">API Keys</a></li>
+          <li><a href="/profile" hx-get="/profile" hx-target="#main-content" hx-push-url="true">Profile</a></li>
+          <li><a href="/login" hx-get="/login" hx-target="#main-content" hx-push-url="true" id="login-link">Login</a></li>
+          <li><a href="/register" hx-get="/register" hx-target="#main-content" hx-push-url="true" id="register-link">Register</a></li>
+        </ul>
+      </div>
+    </nav>
+    <main id="main-content" class="container">{% block content %}{% endblock %}</main>
+  </body>
+</html>

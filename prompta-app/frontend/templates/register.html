@@ -1,0 +1,16 @@
+{% extends "base.html" %} {% block content %}
+<h1>Register</h1>
+<form id="register-form" hx-post="/auth/register" hx-target="#main-content" hx-swap="outerHTML">
+  <label for="username">Username</label>
+  <input type="text" id="username" name="username" required autocomplete="username" />
+
+  <label for="email">Email</label>
+  <input type="email" id="email" name="email" required autocomplete="email" />
+
+  <label for="password">Password</label>
+  <input type="password" id="password" name="password" required autocomplete="new-password" />
+
+  <button type="submit">Register</button>
+</form>
+<p>Already have an account? <a href="/login" hx-get="/login" hx-target="#main-content" hx-push-url="true">Login</a></p>
+{% endblock %}

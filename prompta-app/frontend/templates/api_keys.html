@@ -1,0 +1,22 @@
+{% extends "base.html" %} {% block content %}
+<h1>API Keys</h1>
+<button hx-get="/api-keys/new" hx-target="#main-content" hx-swap="outerHTML">+ New API Key</button>
+<ul id="api-key-list">
+  {% for key in api_keys %}
+  <li>
+    <strong>{{ key.name }}</strong>
+    <span>
+      {% if key.is_active %}
+      <span class="tag" style="color: green">Active</span>
+      {% else %}
+      <span class="tag" style="color: gray">Inactive</span>
+      {% endif %}
+    </span>
+    <button hx-get="/api-keys/{{ key.id }}/edit" hx-target="#main-content" hx-swap="outerHTML">Edit</button>
+    <button hx-delete="/api-keys/{{ key.id }}" hx-target="#main-content" hx-swap="outerHTML">Delete</button>
+  </li>
+  {% else %}
+  <li>No API keys found.</li>
+  {% endfor %}
+</ul>
+{% endblock %}

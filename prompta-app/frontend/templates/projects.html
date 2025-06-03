@@ -1,0 +1,13 @@
+{% extends "base.html" %} {% block content %}
+<h1>Projects</h1>
+<button hx-get="/projects/new" hx-target="#main-content" hx-swap="outerHTML">+ New Project</button>
+<ul id="project-list">
+  {# Example project list, to be rendered dynamically #} {% for project in projects %}
+  <li>
+    <a href="/projects/{{ project.id }}" hx-get="/projects/{{ project.id }}" hx-target="#main-content" hx-push-url="true"> {{ project.name }} </a>
+  </li>
+  {% else %}
+  <li>No projects found.</li>
+  {% endfor %}
+</ul>
+{% endblock %}

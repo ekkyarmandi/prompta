@@ -1,0 +1,18 @@
+{% extends "base.html" %} {% block content %}
+<h1>Prompts</h1>
+<button hx-get="/prompts/new" hx-target="#main-content" hx-swap="outerHTML">+ New Prompt</button>
+<ul id="prompt-list">
+  {% for prompt in prompts %}
+  <li>
+    <a href="/prompts/{{ prompt.id }}" hx-get="/prompts/{{ prompt.id }}" hx-target="#main-content" hx-push-url="true"> {{ prompt.name }} </a>
+    <span class="tags">
+      {% for tag in prompt.tags %}
+      <span class="tag">{{ tag }}</span>
+      {% endfor %}
+    </span>
+  </li>
+  {% else %}
+  <li>No prompts found.</li>
+  {% endfor %}
+</ul>
+{% endblock %}
