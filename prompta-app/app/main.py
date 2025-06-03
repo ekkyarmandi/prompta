@@ -1,6 +1,6 @@
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, HTMLResponse
 import time
 import logging
 
@@ -79,14 +79,19 @@ async def health_check():
 # Root endpoint
 @app.get("/")
 async def root():
-    """Root endpoint with API information"""
-    return {
-        "message": "Welcome to Prompta API",
-        "version": settings.app_version,
-        "docs_url": (
-            "/docs" if settings.debug else "Documentation disabled in production"
-        ),
-    }
+    """Root endpoint with a simple web UI"""
+    html_content = """
+    <html>
+        <head>
+            <title>Prompta Home</title>
+        </head>
+        <body>
+            <h1>Welcome to Prompta!</h1>
+            <p>This is a simple web UI.</p>
+        </body>
+    </html>
+    """
+    return HTMLResponse(content=html_content, status_code=200)
 
 
 # Include routers
