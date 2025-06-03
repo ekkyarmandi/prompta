@@ -1,6 +1,4 @@
-{% extends "base.html" %} {% block title %}Login - Prompta{% endblock %} {% block nav_items %}
-<a href="/register" class="text-primary-600 hover:text-accent-600 transition-colors"> Create Account </a>
-{% endblock %} {% block content %}
+{% extends "base.html" %} {% block title %}Login - Prompta{% endblock %} {% block nav_items %} {% endblock %} {% block content %}
 <div class="min-h-screen flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
   <div class="max-w-md w-full space-y-8">
     <div class="text-center">
@@ -17,8 +15,8 @@
       </div>
 
       <!-- Login form -->
-      <form hx-post="/auth/html/login" hx-target="#form-container" hx-indicator="#loading" hx-swap="outerHTML" class="space-y-6" id="login-form">
-        <div id="form-container">
+      <form hx-post="/auth/html/login" hx-target="body" hx-indicator="#loading" hx-swap="outerHTML" class="space-y-6" id="login-form">
+        <div id="form-container" class="space-y-4">
           <div>
             <label for="username" class="block text-sm font-medium text-primary-700 mb-2"> Username </label>
             <input
@@ -47,9 +45,6 @@
             <div class="flex items-center">
               <input type="checkbox" id="remember-me" name="remember-me" class="h-4 w-4 text-accent-600 focus:ring-accent-500 border-primary-300 rounded" />
               <label for="remember-me" class="ml-2 block text-sm text-primary-700"> Remember me </label>
-            </div>
-            <div class="text-sm">
-              <a href="#" class="font-medium text-accent-600 hover:text-accent-500 transition-colors"> Forgot your password? </a>
             </div>
           </div>
 

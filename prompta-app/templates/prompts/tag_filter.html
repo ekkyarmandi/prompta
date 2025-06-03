@@ -1,0 +1,11 @@
+{% for tag in tags %}
+  <button
+    class="px-2.5 py-1 rounded-full text-sm {{ 'bg-accent-600 text-white' if tag.name in active_tags else 'bg-primary-100 text-primary-800' }} hover:bg-accent-600 hover:text-white transition-colors"
+    hx-get="/prompts/html/list"
+    hx-vals='{"tag": "{{ tag.name }}"}'
+    hx-target="#prompt-table-body"
+    hx-swap="innerHTML"
+  >
+    {{ tag.name }}
+  </button>
+{% endfor %}

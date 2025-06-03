@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+
+{% block title %}Prompts - Prompta{% endblock %}
+
+{% block nav_items %}
+  <a href="/" class="text-primary-600 hover:text-accent-600 transition-colors">Dashboard</a>
+  <a href="/prompts/html/list" class="text-primary-900 font-semibold hover:text-accent-600 transition-colors">Prompts</a>
+  <a href="/profile" class="text-primary-600 hover:text-accent-600 transition-colors">Profile</a>
+  <button
+    hx-post="/auth/html/logout"
+    hx-target="body"
+    hx-swap="outerHTML"
+    class="text-primary-600 hover:text-accent-600 transition-colors"
+  >
+    Logout
+  </button>
+{% endblock %}
+
+{% block content %}
+  <div class="flex items-center justify-between mb-6">
+    <h1 class="text-3xl font-bold text-primary-900">Prompts</h1>
+
+    <div class="flex space-x-2">
+      <input
+        type="search"
+        name="q"
+        id="search"
+        placeholder="Search prompts..."
+        hx-get="/prompts/html/search"
+        hx-trigger="keyup changed delay:300ms"
+        hx-target="#prompt-table-body"
+        hx-vals="js:{ q: this.value }"
+        class="px-3 py-2 border border-primary-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-accent-500 focus:border-accent-500 transition-colors w-64"
+      />
+
+      <button
+        hx-get="/prompts/html/new"
+        hx-target="#modal-container"
+        hx-swap="innerHTML"
+        class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-accent-600 hover:bg-accent-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-accent-500 transition-colors"
+      >
+        <svg class="-ml-1 mr-2 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
+        </svg>
+        New Prompt
+      </button>
+    </div>
+  </div>
+
+  <!-- Tags filter -->
+  <div class="flex items-center space-x-2 mb-4" id="tag-filter-container" hx-get="/prompts/html/tag-filter" hx-trigger="load" hx-target="#tag-filter-container" hx-swap="innerHTML">
+    <!-- Tag chips will be injected here -->
+  </div>
+
+  <!-- Prompt table -->
+  <div class="overflow-x-auto bg-white shadow-sm rounded-lg border border-primary-200">
+    <table class="min-w-full divide-y divide-primary-200">
+      <thead class="bg-primary-100">
+        <tr>
+          <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-primary-700 uppercase tracking-wider">Name</th>
+          <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-primary-700 uppercase tracking-wider">Tags</th>
+          <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-primary-700 uppercase tracking-wider">Updated</th>
+          <th scope="col" class="relative px-6 py-3"><span class="sr-only">Actions</span></th>
+        </tr>
+      </thead>
+      <tbody id="prompt-table-body" class="bg-white divide-y divide-primary-200" hx-get="/prompts/html/list" hx-trigger="load" hx-target="#prompt-table-body" hx-swap="innerHTML">
+        <!-- Prompt rows will be loaded here -->
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Modal placeholder -->
+  <div id="modal-container"></div>
+{% endblock %}
+
+{% block scripts %}
+  <script>
+    // Close modal when clicking element with data-modal-close or ESC key
+    document.addEventListener("click", function (event) {
+      if (event.target.closest("[data-modal-close]")) {
+        document.getElementById("modal-container").innerHTML = "";
+      }
+    });
+
+    document.addEventListener("keydown", function (event) {
+      if (event.key === "Escape") {
+        document.getElementById("modal-container").innerHTML = "";
+      }
+    });
+  </script>
+{% endblock %}

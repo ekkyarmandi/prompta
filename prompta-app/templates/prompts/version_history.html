@@ -1,0 +1,22 @@
+<div class="bg-white shadow-sm rounded-lg border border-primary-200 divide-y divide-primary-200">
+  {% if versions|length == 0 %}
+    <div class="p-4 text-center text-primary-600">No versions yet.</div>
+  {% else %}
+    {% for version in versions %}
+      <div class="p-4 flex items-center justify-between">
+        <div>
+          <p class="text-sm font-medium text-primary-900">{{ version.commit_message or 'No message' }}</p>
+          <p class="text-xs text-primary-500">{{ version.created_at.strftime('%Y-%m-%d %H:%M:%S') }}</p>
+        </div>
+        <button
+          hx-get="/prompts/html/{{ prompt_id }}/versions/{{ version.id }}/diff"
+          hx-target="#modal-container"
+          hx-swap="innerHTML"
+          class="text-sm text-accent-600 hover:text-accent-700 transition-colors"
+        >
+          View Diff
+        </button>
+      </div>
+    {% endfor %}
+  {% endif %}
+</div>
