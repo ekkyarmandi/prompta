@@ -65,7 +65,7 @@ class PromptaClient:
             ValidationError: For 422 errors
             PromptaAPIError: For other API errors
         """
-        url = f"{self.base_url}/{endpoint.lstrip('/')}"
+        url = f"{self.base_url}/api/v1/{endpoint.lstrip('/')}"
 
         if skip_auth:
             headers = {

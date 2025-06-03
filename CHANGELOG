@@ -1,0 +1,5 @@
+## [v0.3.1] - 2025-06-03
+
+### Changed
+
+- Changed the base URL to `http://localhost:8000/api/v1` in `PromptaClient` to match the API endpoint.
