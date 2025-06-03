@@ -1,0 +1,8 @@
+{% extends "base.html" %} {% block content %}
+<h1>Welcome to Prompta</h1>
+<p>Manage your projects, prompts, API keys, and profile with a modern, minimalist interface.</p>
+<div class="home-actions">
+  <a href="/register" hx-get="/register" hx-target="#main-content" hx-push-url="true" class="button">Get Started</a>
+  <a href="/login" hx-get="/login" hx-target="#main-content" hx-push-url="true" class="button">Login</a>
+</div>
+{% endblock %}

@@ -1,8 +1,11 @@
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, HTMLResponse
+from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
 import time
 import logging
+import os
 
 from .config import settings
 from .database import create_tables
@@ -32,6 +35,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Set up Jinja2 templates and static files
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+TEMPLATES_DIR = os.path.join(BASE_DIR, "frontend", "templates")
+STATIC_DIR = os.path.join(BASE_DIR, "frontend", "static")
+templates = Jinja2Templates(directory=TEMPLATES_DIR)
+app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 # Middleware for request timing and logging
 @app.middleware("http")
@@ -51,6 +60,7 @@ async def log_requests(request: Request, call_next):
     logger.info(f"Response: {response.status_code} - {process_time:.4f}s")
 
     return response
+
 
 
 # Exception handlers
@@ -77,21 +87,10 @@ async def health_check():
 
 
 # Root endpoint
-@app.get("/")
-async def root():
-    """Root endpoint with a simple web UI"""
-    html_content = """
-    <html>
-        <head>
-            <title>Prompta Home</title>
-        </head>
-        <body>
-            <h1>Welcome to Prompta!</h1>
-            <p>This is a simple web UI.</p>
-        </body>
-    </html>
-    """
-    return HTMLResponse(content=html_content, status_code=200)
+@app.get("/", response_class=JSONResponse)
+async def root(request: Request):
+    """Home page with web UI"""
+    return templates.TemplateResponse("home.html", {"request": request})
 
 
 # Include routers
