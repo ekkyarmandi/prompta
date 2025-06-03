@@ -7,8 +7,10 @@ import logging
 from .config import settings
 from .database import create_tables
 from auth.routes import router as auth_router
+from auth.html_routes import router as auth_html_router
 from prompts.routes import router as prompts_router
 from prompts.project_routes import router as projects_router
+from .html_routes import router as html_router
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -76,25 +78,24 @@ async def health_check():
     }
 
 
-# Root endpoint
+# API Root endpoint
 @app.get("/api/v1")
-async def root():
-    """Root endpoint with a simple web UI"""
-    html_content = """
-    <html>
-        <head>
-            <title>Prompta Home</title>
-        </head>
-        <body>
-            <h1>Welcome to Prompta!</h1>
-            <p>This is a simple web UI.</p>
-        </body>
-    </html>
-    """
-    return HTMLResponse(content=html_content, status_code=200)
+async def api_root():
+    """API Root endpoint with API information"""
+    return {
+        "message": "Welcome to Prompta API",
+        "app_name": settings.app_name,
+        "version": settings.app_version,
+        "docs": (
+            "/api/v1/docs" if settings.debug else "Documentation disabled in production"
+        ),
+        "health": "/api/v1/health",
+    }
 
 
 # Include routers
+app.include_router(html_router)  # HTML routes (no prefix for web pages)
+app.include_router(auth_html_router)  # HTML auth routes
 app.include_router(auth_router, prefix="/api/v1")
 app.include_router(prompts_router, prefix="/api/v1")
 app.include_router(projects_router, prefix="/api/v1")
