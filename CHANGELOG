@@ -1,3 +1,13 @@
+## [v0.4.0] - 2025-06-04
+
+### Added
+
+- **Interface Objects**: New `Project`, `Prompt`, and `PromptVersion` classes for external use without API complexity
+- **Auto-Tracking**: `TrackedPrompt` class with automatic context detection and explicit naming
+- **File Management**: Seamless file/API synchronization with `location` parameter
+- **Version Loading**: Load specific versions with `TrackedPrompt(name="X", version="v1")`
+- **Enhanced Client**: Added missing project management methods (`create_project`, `update_project`, `delete_project`)
+
 ## [v0.3.1] - 2025-06-03
 
 ### Changed
