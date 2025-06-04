@@ -1,14 +1,46 @@
-"""Prompta CLI core package.
+"""Prompta CLI Package
 
-This directory contains the entire implementation of the Prompta command-line
-interface.
+A comprehensive command-line interface and Python library for Prompta.
+
+This package provides:
+1. CLI commands for prompt and project management
+2. Interface objects for external use without API complexity
+3. Auto-tracking functionality with context detection
+4. File-based prompt management with auto-sync
+5. Version-specific prompt loading and comparison
+
+Interface Objects (for external use):
+- Project: Create, read, update, delete projects
+- Prompt: Create, read, update, delete prompts
+- PromptVersion: Work with prompt versions
+
+Tracking Objects (auto-detection + explicit naming):
+- TrackedPrompt: Enhanced prompts with context detection, file support, and version loading
+- tracked_prompt(): Convenience function for tracking prompts
+
+Version Loading Examples:
+```python
+# Load specific version
+prompt = TrackedPrompt(name="assistant", version="v1")
+prompt = TrackedPrompt(name="assistant", version=2)
+prompt = TrackedPrompt(name="assistant", version="latest")
+
+# Load from file
+prompt = TrackedPrompt(name="assistant", location="prompt.txt")
+
+# Regular tracking (creates versions automatically)
+prompt = TrackedPrompt(name="assistant", content="You are helpful")
+```
+
+Classes and functions imported from this package can be used independently
+of the CLI commands, making them suitable for integration into other Python projects.
 """
 
 import os
 from pathlib import Path
 
 # Keep the semantic version in sync with pyproject.toml
-__version__: str = "0.3.1"
+__version__: str = "0.4.0"
 
 
 def _ensure_prompta_config_on_import():
@@ -44,10 +76,22 @@ from .main import cli  # noqa: E402, isort: skip
 # Export interface objects for external use
 from .models import Project, Prompt, PromptVersion  # noqa: E402, isort: skip
 
+# Export tracking functionality
+from .tracking import TrackedPrompt, tracked_prompt  # noqa: E402, isort: skip
+
+# Configuration and client (for advanced users)
+from .config import Config, ConfigManager
+from .client import PromptaClient
+
 __all__ = [
     "cli",
     "Project",
     "Prompt",
     "PromptVersion",
+    "TrackedPrompt",
+    "tracked_prompt",
+    "Config",
+    "ConfigManager",
+    "PromptaClient",
     "__version__",
 ]
