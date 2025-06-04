@@ -571,3 +571,36 @@ class PromptaClient:
         return self._make_request(
             "GET", f"/prompts/download/by-project/{quote(project_name)}", params=params
         )
+
+    def create_project(self, project_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Create a new project.
+
+        Args:
+            project_data: Project data
+
+        Returns:
+            Created project data
+        """
+        return self._make_request("POST", "/projects", data=project_data)
+
+    def update_project(
+        self, project_id: str, update_data: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """Update a project.
+
+        Args:
+            project_id: Project ID
+            update_data: Data to update
+
+        Returns:
+            Updated project data
+        """
+        return self._make_request("PUT", f"/projects/{project_id}", data=update_data)
+
+    def delete_project(self, project_id: str) -> None:
+        """Delete a project.
+
+        Args:
+            project_id: Project ID
+        """
+        self._make_request("DELETE", f"/projects/{project_id}")

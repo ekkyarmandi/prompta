@@ -41,7 +41,13 @@ __license__: str = "MIT"
 # Re-export the Click entry-point so that `python -m prompta` works as expected.
 from .main import cli  # noqa: E402, isort: skip
 
+# Export interface objects for external use
+from .models import Project, Prompt, PromptVersion  # noqa: E402, isort: skip
+
 __all__ = [
     "cli",
+    "Project",
+    "Prompt",
+    "PromptVersion",
     "__version__",
 ]

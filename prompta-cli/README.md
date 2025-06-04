@@ -79,6 +79,64 @@ prompta info
 - **`prompta show`** - Display prompt content in the terminal with syntax highlighting
 - **`prompta info`** - Get detailed information about the system
 
+## Interface Objects for External Use
+
+Prompta CLI now provides interface objects that can be imported and used in your own Python projects:
+
+```python
+from prompta import Project, Prompt, PromptVersion
+
+# Create a new project
+project = Project.create(
+    name="My AI Project",
+    description="Collection of AI prompts",
+    tags=["ai", "automation"],
+    is_public=False
+)
+
+# Create a prompt in the project
+prompt = Prompt.create(
+    name="Summary Generator",
+    content="Please summarize the following text: {text}",
+    location="prompts/summary.txt",
+    project_id=project.id,
+    description="Generates concise summaries",
+    tags=["summary", "text-processing"]
+)
+
+# Update prompt with new version
+prompt.create_version(
+    content="Please provide a detailed summary of: {text}",
+    commit_message="Made summary more detailed"
+)
+
+# List and search
+projects = Project.list(tags=["ai"])
+results = Prompt.search("summary")
+
+# Get specific items
+my_project = Project.get("My AI Project")
+my_prompt = Prompt.get("Summary Generator")
+```
+
+### Key Features
+
+- **Clean Interface**: No need to handle HTTP requests or API keys directly
+- **Automatic Configuration**: Uses existing config system (API key from environment or `~/.prompta`)
+- **Type Hints**: Full type annotation for better IDE support
+- **Error Handling**: Uses existing exception classes
+- **Version Management**: Built-in support for prompt versioning
+- **Search & Filter**: Easy methods for finding projects and prompts
+
+### Configuration
+
+The interface objects automatically use your existing Prompta configuration:
+
+- `PROMPTA_API_KEY` environment variable
+- `PROMPTA_API_URL` environment variable
+- `.env` file in current directory
+- `~/.prompta` configuration file
+
 ## Repository
 
 **GitHub**: [https://github.com/ekkyarmandi/prompta](https://github.com/ekkyarmandi/prompta)
