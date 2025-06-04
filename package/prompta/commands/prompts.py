@@ -1,5 +1,6 @@
 """Prompt management commands for Prompta CLI."""
 
+import shutil
 from pathlib import Path
 from typing import List, Optional
 
@@ -71,38 +72,173 @@ def list_command(
             # API expects a list of strings, not a single comma-separated string
             tag_list = [tag.strip() for tag in tags.split(",") if tag.strip()]
 
-        # Attempt to get paginated prompts
-        response = client.get_prompts(
-            query=query,
-            tags=tag_list if tag_list is not None else None,
-            location=location,
-            page=page,
-            page_size=page_size,
-        )
+        # Calculate offset from page and page_size
+        offset = (page - 1) * page_size
 
-        # Support both paginated and legacy list responses
-        if isinstance(response, dict):
-            prompts = response.get("prompts", [])
-            total = response.get("total", 0)
-            total_pages = response.get("total_pages", 0)
-        else:
-            prompts = response
+        # Use search if query is provided, otherwise use regular get_prompts
+        if query:
+            # Use search function for query-based searches
+            prompts = client.search_prompts(query)
+
+            # Apply additional filters client-side if needed
+            if tag_list:
+                prompts = [
+                    p
+                    for p in prompts
+                    if any(tag in p.get("tags", []) for tag in tag_list)
+                ]
+            if location:
+                prompts = [
+                    p
+                    for p in prompts
+                    if location.lower() in p.get("location", "").lower()
+                ]
+
+            # Apply pagination client-side for search results
             total = len(prompts)
-            total_pages = 1
+            start_idx = offset
+            end_idx = start_idx + page_size
+            prompts = prompts[start_idx:end_idx]
+            total_pages = (total + page_size - 1) // page_size
+        else:
+            # Use regular get_prompts with filters
+            prompts = client.get_prompts(
+                tags=tag_list if tag_list is not None else None,
+                location=location,
+                limit=page_size,
+                offset=offset,
+            )
+
+            # For regular get_prompts, we don't get total count info
+            # so we'll estimate based on returned results
+            total = len(prompts) + offset  # This is an estimate
+            total_pages = page if len(prompts) == page_size else page
 
         if not prompts:
             click.echo("No prompts found.")
             return
 
-        # Display prompts in a table format
-        click.echo(f"{'Name':<20} {'Location':<15} {'Tags':<20} {'Version':<8}")
-        click.echo("-" * 70)
-
+        # Calculate dynamic column widths based on content and terminal width
+        # Prepare data for width calculation
+        table_data = []
         for prompt in prompts:
             tags_str = ", ".join(prompt.get("tags", []))
             version = prompt.get("current_version", {}).get("version_number", "N/A")
+            table_data.append(
+                {
+                    "name": prompt["name"],
+                    "location": prompt["location"],
+                    "tags": tags_str,
+                    "version": str(version),
+                }
+            )
+
+        # Get terminal width, default to 120 if not available
+        try:
+            terminal_width = shutil.get_terminal_size().columns
+        except:
+            terminal_width = 120
+
+        # Set maximum table width (leave some margin)
+        max_table_width = min(terminal_width - 4, 140)
+
+        # Calculate initial column widths based on content
+        name_width = max(len("Name"), max(len(row["name"]) for row in table_data), 12)
+        location_width = max(
+            len("Location"), max(len(row["location"]) for row in table_data), 10
+        )
+        tags_width = max(len("Tags"), max(len(row["tags"]) for row in table_data), 8)
+        version_width = max(
+            len("Version"), max(len(row["version"]) for row in table_data), 7
+        )
+
+        # Calculate separator width (│ + spaces)
+        separator_width = 9  # 3 separators × 3 chars each
+        total_content_width = (
+            name_width + location_width + tags_width + version_width + separator_width
+        )
+
+        # If table is too wide, redistribute space
+        if total_content_width > max_table_width:
+            available_width = (
+                max_table_width - separator_width - version_width
+            )  # Keep version width fixed
+
+            # Set minimum widths
+            min_name_width = 15
+            min_location_width = 12
+            min_tags_width = 10
+
+            # Calculate proportional widths
+            total_min = min_name_width + min_location_width + min_tags_width
+            remaining_width = available_width - total_min
+
+            if remaining_width > 0:
+                # Distribute remaining width proportionally
+                name_extra = int(remaining_width * 0.35)  # 35% for name
+                location_extra = int(remaining_width * 0.35)  # 35% for location
+                tags_extra = (
+                    remaining_width - name_extra - location_extra
+                )  # remainder for tags
+
+                name_width = min_name_width + name_extra
+                location_width = min_location_width + location_extra
+                tags_width = min_tags_width + tags_extra
+            else:
+                # Use minimum widths
+                name_width = min_name_width
+                location_width = min_location_width
+                tags_width = min_tags_width
+        else:
+            # Apply reasonable maximum limits when there's plenty of space
+            name_width = min(name_width, 35)
+            location_width = min(location_width, 40)
+            tags_width = min(tags_width, 45)
+
+        # Display table header
+        click.echo(
+            f"{'Name':<{name_width}} │ {'Location':<{location_width}} │ {'Tags':<{tags_width}} │ {'Version':<{version_width}}"
+        )
+        click.echo(
+            "─" * name_width
+            + "─┼─"
+            + "─" * location_width
+            + "─┼─"
+            + "─" * tags_width
+            + "─┼─"
+            + "─" * version_width
+            + "─"
+        )
+
+        # Helper function for smart text truncation
+        def smart_truncate(text: str, max_width: int) -> str:
+            """Truncate text smartly, preferring word boundaries."""
+            if len(text) <= max_width:
+                return text
+
+            if max_width <= 3:
+                return "..."
+
+            # Try to break at word boundary
+            truncated = text[: max_width - 3]
+            last_space = truncated.rfind(" ")
+
+            # If we found a space and it's not too close to the beginning, use it
+            if last_space > max_width * 0.6:
+                return truncated[:last_space] + "..."
+            else:
+                return truncated + "..."
+
+        # Display table rows
+        for row in table_data:
+            # Smart truncation for each field
+            name = smart_truncate(row["name"], name_width)
+            location = smart_truncate(row["location"], location_width)
+            tags = smart_truncate(row["tags"], tags_width)
+            version = row["version"][:version_width]  # Version should be short anyway
+
             click.echo(
-                f"{prompt['name']:<20} {prompt['location']:<15} {tags_str:<20} {version:<8}"
+                f"{name:<{name_width}} │ {location:<{location_width}} │ {tags:<{tags_width}} │ {version:<{version_width}}"
             )
 
         # Show pagination info if available

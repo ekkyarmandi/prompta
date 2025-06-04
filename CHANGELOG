@@ -1,3 +1,15 @@
+## [v0.4.1] - 2025-06-04
+
+### Fixed
+
+- Fixed the `list` command to display the table correctly.
+
+### Changed
+
+- Changed the base URL to `http://localhost:8000/api/v1` in `PromptaClient` to match the API endpoint.
+- Changed the `list` command to display the table correctly.
+- Changed docker-compose.yml to use the `api` service name instead of `app`.
+
 ## [v0.4.0] - 2025-06-04
 
 ### Added
