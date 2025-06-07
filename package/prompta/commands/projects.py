@@ -42,13 +42,29 @@ def _normalize_prompt_location(location: str) -> str:
     return location
 
 
-@click.command()
+@click.group(invoke_without_command=True)
+@click.pass_context
+def project_group(ctx):
+    """Project management commands.
+    
+    Manage projects and download project files.
+    
+    Common commands:
+      prompta project list              # List all projects
+      prompta project show <name>       # Show project details
+      prompta project download <name>   # Download project files
+    """
+    if ctx.invoked_subcommand is None:
+        click.echo(ctx.get_help())
+
+
+@project_group.command("list")
 @click.option("--query", help="Search term for name or description")
 @click.option("--tags", help="Filter by tags (comma-separated)")
 @click.option("--page", type=int, default=1, help="Page number (default: 1)")
 @click.option("--page-size", type=int, default=20, help="Items per page (default: 20)")
 @click.option("--api-key", help="API key to use for this request")
-def projects_command(
+def list_command(
     query: Optional[str],
     tags: Optional[str],
     page: int,
@@ -109,83 +125,59 @@ def projects_command(
         raise click.ClickException("API request failed")
 
 
-@click.command()
-@click.argument("identifier", required=False)
-@click.option("--project", "-p", help="Download entire project by name")
+@project_group.command("download")
+@click.argument("identifier")
 @click.option("--output", "-o", help="Output directory or file path")
 @click.option("--api-key", help="API key to use for this request")
-def get_command(
-    identifier: Optional[str],
-    project: Optional[str],
+def download_command(
+    identifier: str,
     output: Optional[str],
     api_key: Optional[str],
 ):
-    """Download prompt files or entire projects.
+    """Download entire project by name or ID.
 
     Usage examples:
-      prompta get {project_id}          # Download entire project by ID
-      prompta get {prompt_id}           # Download individual prompt by ID
-      prompta get {prompt-name}         # Download individual prompt by name
-      prompta get --project {project-name}  # Download entire project by name
+      prompta project download my-project      # Download project by name
+      prompta project download {project_id}   # Download project by ID
 
     Note: If multiple projects have the same name, you must use the project ID.
-    Use 'prompta projects' to list all projects with their IDs.
+    Use 'prompta project list' to list all projects with their IDs.
     """
     try:
         client = get_authenticated_client(api_key)
 
-        # Validate that exactly one of identifier or project is provided
-        if not identifier and not project:
-            click.echo(
-                "❌ Error: You must specify either IDENTIFIER as argument or use --project with project name.",
-                err=True,
-            )
-            raise click.ClickException("Missing identifier")
-
-        if identifier and project:
-            click.echo(
-                "❌ Error: Cannot specify both IDENTIFIER argument and --project option. Use one or the other.",
-                err=True,
-            )
-            raise click.ClickException("Conflicting identifiers")
-
-        # If --project option is used, download entire project by name
-        if project:
-            return _download_project_by_name(client, project, output)
-
         # Try to determine what type of identifier this is
         # UUIDs are 36 characters with 4 dashes
         if len(identifier) == 36 and identifier.count("-") == 4:
-            # Looks like a UUID - try project first, then prompt
+            # Looks like a UUID - download project by ID
             try:
                 return _download_project_by_id(client, identifier, output)
             except NotFoundError:
-                # Not a project, try as prompt
-                return _download_prompt_by_id(client, identifier, output)
+                click.echo(
+                    f"❌ No project found with ID '{identifier}'.",
+                    err=True,
+                )
+                raise click.ClickException("Project not found")
         else:
-            # Not a UUID - try prompt name first, then project name
+            # Try project name
             try:
-                return _download_prompt_by_name(client, identifier, output)
+                return _download_project_by_name(client, identifier, output)
             except NotFoundError:
-                # Not a prompt, try as project name
-                try:
-                    return _download_project_by_name(client, identifier, output)
-                except NotFoundError:
+                click.echo(
+                    f"❌ No project found with name '{identifier}'.",
+                    err=True,
+                )
+                raise click.ClickException("Project not found")
+            except click.ClickException as e:
+                # If it's a "multiple projects" error, re-raise it directly
+                if "Multiple projects with same name" in str(e):
+                    raise e
+                else:
                     click.echo(
-                        f"❌ No project or prompt found with identifier '{identifier}'.",
+                        f"❌ No project found with name '{identifier}'.",
                         err=True,
                     )
-                    raise click.ClickException("Resource not found")
-                except click.ClickException as e:
-                    # If it's a "multiple projects" error, re-raise it directly
-                    if "Multiple projects with same name" in str(e):
-                        raise e
-                    else:
-                        click.echo(
-                            f"❌ No project or prompt found with identifier '{identifier}'.",
-                            err=True,
-                        )
-                        raise click.ClickException("Resource not found")
+                    raise click.ClickException("Project not found")
 
     except AuthenticationError as e:
         click.echo(f"❌ {e}", err=True)
@@ -294,43 +286,54 @@ def _download_project_prompts(client, project_name: str, output: Optional[str]):
     )
 
 
-def _download_prompt_by_id(client, prompt_id: str, output: Optional[str]):
-    """Download individual prompt by ID."""
-    prompt = client.get_prompt_by_id(prompt_id)
-    return _download_single_prompt(prompt, output)
+
+@project_group.command("create")
+@click.option("--name", required=True, help="Project name")
+@click.option("--description", help="Project description")
+@click.option("--tags", help="Project tags (comma-separated)")
+@click.option("--public", is_flag=True, help="Make project public")
+@click.option("--api-key", help="API key to use for this request")
+def create_command(
+    name: str,
+    description: Optional[str],
+    tags: Optional[str],
+    public: bool,
+    api_key: Optional[str],
+):
+    """Create a new project."""
+    try:
+        client = get_authenticated_client(api_key)
+
+        # Parse tags
+        tag_list = []
+        if tags:
+            tag_list = [tag.strip() for tag in tags.split(",")]
+
+        project_data = {
+            "name": name,
+            "description": description,
+            "tags": tag_list,
+            "is_public": public,
+        }
+
+        project = client.create_project(project_data)
+        click.echo(f"✅ Created project '{name}' (ID: {project['id']})")
+
+    except ValidationError as e:
+        click.echo(f"❌ {e}", err=True)
+        raise click.ClickException("Project creation failed")
+    except AuthenticationError as e:
+        click.echo(f"❌ {e}", err=True)
+        raise click.ClickException("Authentication failed")
+    except PromptaAPIError as e:
+        click.echo(f"❌ {e}", err=True)
+        raise click.ClickException("API request failed")
 
 
-def _download_prompt_by_name(client, prompt_name: str, output: Optional[str]):
-    """Download individual prompt by name."""
-    prompt = client.get_prompt_by_name(prompt_name)
-    return _download_single_prompt(prompt, output)
-
-
-def _download_single_prompt(prompt: dict, output: Optional[str]):
-    """Download a single prompt to file."""
-    # Determine output path
-    if output:
-        output_path = Path(output)
-    else:
-        # Use the helper function to properly normalize the location
-        normalized_location = _normalize_prompt_location(prompt["location"])
-        output_path = Path(normalized_location)
-
-    # Create parent directories if they don't exist
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-
-    # Write content to file
-    content = prompt["current_version"]["content"]
-    with open(output_path, "w") as f:
-        f.write(content)
-
-    click.echo(f"✅ Downloaded prompt '{prompt['name']}' to {output_path}")
-
-
-@click.command()
+@project_group.command("show")
 @click.argument("identifier")
 @click.option("--api-key", help="API key to use for this request")
-def project_info_command(identifier: str, api_key: Optional[str]):
+def show_command(identifier: str, api_key: Optional[str]):
     """Show detailed information about a project."""
     try:
         client = get_authenticated_client(api_key)

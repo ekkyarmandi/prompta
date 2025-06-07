@@ -1,4 +1,4 @@
-"""Info command for checking API status and configuration."""
+"""Health and status commands for Prompta CLI."""
 
 import os
 from pathlib import Path
@@ -95,7 +95,7 @@ def _get_config_sources(
     # Set defaults if nothing found
     if not sources["api_url"]["value"]:
         sources["api_url"]["value"] = "http://localhost:8000"
-        sources["api_url"]["source"] = "Default value"
+        sources["api_url"]["source"] = ""
 
     return sources
 
@@ -109,7 +109,7 @@ def _check_api_status(api_url: str) -> Tuple[bool, str]:
         # Try to hit a health endpoint or root endpoint
         with httpx.Client(timeout=10.0) as client:
             # Try common health check endpoints
-            endpoints_to_try = ["/health", "/api/health", "/status", "/"]
+            endpoints_to_try = ["/api/v1/health", "/health", "/api/health", "/status", "/"]
 
             for endpoint in endpoints_to_try:
                 try:
@@ -172,20 +172,33 @@ def _check_api_key_status(api_key: Optional[str], api_url: str) -> Tuple[bool, s
 @click.command()
 @click.option("--api-key", help="API key to use for checking authentication")
 @click.option("--api-url", help="API URL to use for checking connection")
-def info_command(api_key: Optional[str], api_url: Optional[str]):
-    """Show information about API connection and authentication status.
+def health_group(api_key: Optional[str], api_url: Optional[str]):
+    """Show comprehensive information about API connection and authentication status.
 
     This command checks:
     - Whether the API server is responding
     - Whether API authentication is working
+    - Configuration sources and values
     """
-    click.echo(f"📋 Prompta CLI Info (v{__version__})")
+    click.echo(f"📋 Prompta CLI Status (v{__version__})")
     click.echo("=" * 50)
 
     # Get configuration from all sources
     config_sources = _get_config_sources(api_key, api_url)
     current_api_url = config_sources["api_url"]["value"]
     current_api_key = config_sources["api_key"]["value"]
+
+    # Show configuration sources
+    click.echo("\n⚙️  Configuration:")
+    click.echo(f"   API URL: {current_api_url}")
+    click.echo(f"   Source:  {config_sources['api_url']['source']}")
+    
+    if current_api_key:
+        masked_key = current_api_key[:12] + "..." + current_api_key[-4:] if len(current_api_key) > 16 else current_api_key[:8] + "..."
+        click.echo(f"   API Key: {masked_key}")
+        click.echo(f"   Source:  {config_sources['api_key']['source']}")
+    else:
+        click.echo(f"   API Key: Not configured")
 
     # Check API connection
     click.echo("\n🌐 Server Connection:")
@@ -219,3 +232,22 @@ def info_command(api_key: Optional[str], api_url: Optional[str]):
         if not is_live:
             click.echo("   Configure your API URL:")
             click.echo("     export PROMPTA_API_URL=https://your-api-server.com")
+
+
+@click.command()
+@click.option("--api-url", help="API URL to use for checking connection")
+def ping_command(api_url: Optional[str]):
+    """Quick API server connectivity check."""
+    # Get configuration from all sources
+    config_sources = _get_config_sources(None, api_url)
+    current_api_url = config_sources["api_url"]["value"]
+
+    click.echo(f"🏓 Pinging {current_api_url}...")
+    
+    is_live, status_msg = _check_api_status(current_api_url)
+    
+    if is_live:
+        click.echo(f"✅ {status_msg}")
+    else:
+        click.echo(f"❌ {status_msg}")
+        raise click.ClickException("Server not responding")

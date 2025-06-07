@@ -41,13 +41,24 @@ def _normalize_prompt_location(location: str) -> str:
     return location
 
 
-@click.group()
-def prompts_group():
-    """Prompt management commands for creating, updating, and managing prompts."""
-    pass
+@click.group(invoke_without_command=True)
+@click.pass_context
+def prompt_group(ctx):
+    """Prompt management commands.
+    
+    Create, update, and manage prompts with version control.
+    
+    Common commands:
+      prompta prompt list               # List all prompts
+      prompta prompt show <name>        # Show prompt content
+      prompta prompt create <file>      # Create prompt from file
+      prompta prompt search <query>     # Search prompts by content
+    """
+    if ctx.invoked_subcommand is None:
+        click.echo(ctx.get_help())
 
 
-@click.command()
+@prompt_group.command("list")
 @click.option("--query", help="Search term for name or description")
 @click.option("--tags", help="Filter by tags (comma-separated)")
 @click.option("--location", help="Filter by location")
@@ -254,7 +265,311 @@ def list_command(
         raise click.ClickException("API request failed")
 
 
-@click.command()
+@prompt_group.group("version")
+def version_group():
+    """Version management commands for prompts."""
+    pass
+
+
+@version_group.command("list")
+@click.argument("identifier")
+@click.option("--project-id", help="Project ID (required if multiple prompts have the same name)")
+@click.option("--api-key", help="API key to use for this request")
+def list_versions_command(
+    identifier: str,
+    project_id: Optional[str],
+    api_key: Optional[str],
+):
+    """List all versions of a prompt."""
+    try:
+        client = get_authenticated_client(api_key)
+        prompt = client.get_prompt(identifier, project_id)
+        versions = client.get_versions(prompt["id"])
+
+        if not versions:
+            click.echo("No versions found.")
+            return
+
+        click.echo(f"📄 Versions for prompt '{prompt['name']}':")
+        click.echo()
+
+        for version in versions:
+            current = "✓" if version["is_current"] else " "
+            click.echo(f"  {current} Version {version['version_number']}")
+            click.echo(f"    Created: {version['created_at']}")
+            if version.get("commit_message"):
+                click.echo(f"    Message: {version['commit_message']}")
+            click.echo()
+
+    except NotFoundError as e:
+        click.echo(f"❌ {e}", err=True)
+        raise click.ClickException("Prompt not found")
+    except ValidationError as e:
+        click.echo(f"❌ {e}", err=True)
+        raise click.ClickException("Multiple prompts found")
+    except AuthenticationError as e:
+        click.echo(f"❌ {e}", err=True)
+        raise click.ClickException("Authentication failed")
+    except PromptaAPIError as e:
+        click.echo(f"❌ {e}", err=True)
+        raise click.ClickException("API request failed")
+
+
+@version_group.command("show")
+@click.argument("identifier")
+@click.argument("version_number", type=int)
+@click.option("--project-id", help="Project ID (required if multiple prompts have the same name)")
+@click.option("--no-syntax", is_flag=True, help="Disable syntax highlighting")
+@click.option("--api-key", help="API key to use for this request")
+def show_version_command(
+    identifier: str,
+    version_number: int,
+    project_id: Optional[str],
+    no_syntax: bool,
+    api_key: Optional[str],
+):
+    """Show content of a specific version."""
+    try:
+        from rich.console import Console
+        from rich.syntax import Syntax
+        from rich.panel import Panel
+
+        client = get_authenticated_client(api_key)
+        prompt = client.get_prompt(identifier, project_id)
+        
+        # Get specific version
+        versions = client.get_versions(prompt["id"])
+        version_data = next(
+            (v for v in versions if v["version_number"] == version_number), None
+        )
+        
+        if not version_data:
+            click.echo(
+                f"❌ Version {version_number} not found for prompt '{identifier}'",
+                err=True,
+            )
+            raise click.ClickException("Version not found")
+
+        console = Console()
+
+        # Display version header
+        header = f"📄 {prompt['name']} - Version {version_number}"
+        if version_data.get("commit_message"):
+            header += f"\n{version_data['commit_message']}"
+
+        console.print(Panel(header, style="bold blue"))
+
+        # Display metadata
+        metadata = []
+        metadata.append(f"📍 Location: {prompt['location']}")
+        metadata.append(f"📅 Created: {version_data['created_at']}")
+        metadata.append(f"🔄 Current: {'Yes' if version_data['is_current'] else 'No'}")
+
+        console.print("\n".join(metadata))
+        console.print()
+
+        # Display content with syntax highlighting
+        content = version_data["content"]
+        if no_syntax:
+            console.print(content)
+        else:
+            # Try to detect file type from location for syntax highlighting
+            file_ext = Path(prompt["location"]).suffix.lower()
+            lexer_map = {
+                ".py": "python",
+                ".js": "javascript",
+                ".ts": "typescript",
+                ".json": "json",
+                ".yaml": "yaml",
+                ".yml": "yaml",
+                ".md": "markdown",
+                ".sh": "bash",
+                ".bash": "bash",
+                ".zsh": "bash",
+                ".fish": "fish",
+                ".toml": "toml",
+                ".ini": "ini",
+                ".cfg": "ini",
+                ".conf": "ini",
+                ".xml": "xml",
+                ".html": "html",
+                ".css": "css",
+                ".sql": "sql",
+                ".dockerfile": "dockerfile",
+                ".gitignore": "gitignore",
+                ".cursorrules": "text",
+            }
+
+            lexer = lexer_map.get(file_ext, "text")
+
+            if prompt["location"].endswith(".cursorrules") or "cursor" in prompt.get("tags", []):
+                lexer = "markdown"
+
+            syntax = Syntax(content, lexer, theme="monokai", line_numbers=True)
+            console.print(syntax)
+
+    except NotFoundError as e:
+        click.echo(f"❌ {e}", err=True)
+        raise click.ClickException("Prompt not found")
+    except ValidationError as e:
+        click.echo(f"❌ {e}", err=True)
+        raise click.ClickException("Multiple prompts found")
+    except AuthenticationError as e:
+        click.echo(f"❌ {e}", err=True)
+        raise click.ClickException("Authentication failed")
+    except PromptaAPIError as e:
+        click.echo(f"❌ {e}", err=True)
+        raise click.ClickException("API request failed")
+    except ImportError:
+        # Fallback if rich is not available
+        click.echo(f"📄 {prompt['name']} - Version {version_number}")
+        if version_data.get("commit_message"):
+            click.echo(f"Message: {version_data['commit_message']}")
+        click.echo(f"Created: {version_data['created_at']}")
+        click.echo()
+        click.echo(content)
+
+
+@version_group.command("create")
+@click.argument("identifier")
+@click.argument("file_path")
+@click.option("--message", "-m", help="Commit message for this version")
+@click.option("--project-id", help="Project ID (required if multiple prompts have the same name)")
+@click.option("--api-key", help="API key to use for this request")
+def create_version_command(
+    identifier: str,
+    file_path: str,
+    message: Optional[str],
+    project_id: Optional[str],
+    api_key: Optional[str],
+):
+    """Create a new version from a file."""
+    try:
+        file_path_obj = Path(file_path)
+
+        if not file_path_obj.exists():
+            click.echo(f"❌ File not found: {file_path}", err=True)
+            raise click.ClickException("File not found")
+
+        # Read file content
+        with open(file_path_obj, "r") as f:
+            content = f.read()
+
+        client = get_authenticated_client(api_key)
+        prompt = client.get_prompt(identifier, project_id)
+
+        # Create version data
+        version_data = {
+            "content": content,
+            "commit_message": message or f"Updated from {file_path}",
+        }
+
+        version = client.create_version(prompt["id"], version_data)
+        click.echo(f"✅ Created version {version['version_number']} for '{prompt['name']}'")
+
+    except NotFoundError as e:
+        click.echo(f"❌ {e}", err=True)
+        raise click.ClickException("Prompt not found")
+    except ValidationError as e:
+        click.echo(f"❌ {e}", err=True)
+        raise click.ClickException("Multiple prompts found")
+    except AuthenticationError as e:
+        click.echo(f"❌ {e}", err=True)
+        raise click.ClickException("Authentication failed")
+    except PromptaAPIError as e:
+        click.echo(f"❌ {e}", err=True)
+        raise click.ClickException("API request failed")
+
+
+@version_group.command("restore")
+@click.argument("identifier")
+@click.argument("version_number", type=int)
+@click.option("--message", "-m", help="Commit message for the restore")
+@click.option("--project-id", help="Project ID (required if multiple prompts have the same name)")
+@click.option("--api-key", help="API key to use for this request")
+def restore_version_command(
+    identifier: str,
+    version_number: int,
+    message: Optional[str],
+    project_id: Optional[str],
+    api_key: Optional[str],
+):
+    """Restore a prompt to a specific version."""
+    try:
+        client = get_authenticated_client(api_key)
+        prompt = client.get_prompt(identifier, project_id)
+
+        # Confirm restore
+        if not click.confirm(f"Restore '{prompt['name']}' to version {version_number}?"):
+            click.echo("Cancelled.")
+            return
+
+        restore_data = {
+            "version_number": version_number,
+            "commit_message": message or f"Restored to version {version_number}",
+        }
+
+        new_version = client.restore_version(prompt["id"], version_number, restore_data)
+        click.echo(f"✅ Restored '{prompt['name']}' to version {version_number}")
+        click.echo(f"   Created new version {new_version['version_number']}")
+
+    except NotFoundError as e:
+        click.echo(f"❌ {e}", err=True)
+        raise click.ClickException("Prompt or version not found")
+    except ValidationError as e:
+        click.echo(f"❌ {e}", err=True)
+        raise click.ClickException("Multiple prompts found")
+    except AuthenticationError as e:
+        click.echo(f"❌ {e}", err=True)
+        raise click.ClickException("Authentication failed")
+    except PromptaAPIError as e:
+        click.echo(f"❌ {e}", err=True)
+        raise click.ClickException("API request failed")
+
+
+@version_group.command("diff")
+@click.argument("identifier")
+@click.argument("version1", type=int)
+@click.argument("version2", type=int)
+@click.option("--project-id", help="Project ID (required if multiple prompts have the same name)")
+@click.option("--api-key", help="API key to use for this request")
+def diff_command(
+    identifier: str,
+    version1: int,
+    version2: int,
+    project_id: Optional[str],
+    api_key: Optional[str],
+):
+    """Compare two versions of a prompt."""
+    try:
+        client = get_authenticated_client(api_key)
+        prompt = client.get_prompt(identifier, project_id)
+
+        diff = client.compare_versions(prompt["id"], version1, version2)
+        
+        if not diff:
+            click.echo("❌ One or both versions not found", err=True)
+            raise click.ClickException("Version not found")
+
+        click.echo(f"📄 Diff for '{prompt['name']}' (v{version1} → v{version2}):")
+        click.echo("=" * 60)
+        click.echo(diff)
+
+    except NotFoundError as e:
+        click.echo(f"❌ {e}", err=True)
+        raise click.ClickException("Prompt not found")
+    except ValidationError as e:
+        click.echo(f"❌ {e}", err=True)
+        raise click.ClickException("Multiple prompts found")
+    except AuthenticationError as e:
+        click.echo(f"❌ {e}", err=True)
+        raise click.ClickException("Authentication failed")
+    except PromptaAPIError as e:
+        click.echo(f"❌ {e}", err=True)
+        raise click.ClickException("API request failed")
+
+
+@prompt_group.command("get")
 @click.argument("identifier")
 @click.option("--output", "-o", help="Output file path")
 @click.option(
@@ -304,7 +619,7 @@ def get_command(
         raise click.ClickException("API request failed")
 
 
-@click.command()
+@prompt_group.command("show")
 @click.argument("identifier")
 @click.option(
     "--version", "-v", type=int, help="Show specific version (defaults to current)"
@@ -438,7 +753,7 @@ def show_command(
         click.echo(content)
 
 
-@prompts_group.command("save")
+@prompt_group.command("create")
 @click.argument("file_path")
 @click.option("--name", help="Name for the prompt (defaults to filename)")
 @click.option("--description", help="Description for the prompt")
@@ -453,7 +768,7 @@ def save_command(
     message: Optional[str],
     api_key: Optional[str],
 ):
-    """Upload a file as a prompt."""
+    """Create a prompt from a local file."""
     try:
         file_path_obj = Path(file_path)
 
@@ -486,7 +801,7 @@ def save_command(
         client = get_authenticated_client(api_key)
         prompt = client.create_prompt(prompt_data)
 
-        click.echo(f"✅ Saved '{prompt_name}' successfully!")
+        click.echo(f"✅ Created prompt '{prompt_name}' successfully (ID: {prompt['id']})")
 
     except AuthenticationError as e:
         click.echo(f"❌ {e}", err=True)
@@ -496,7 +811,7 @@ def save_command(
         raise click.ClickException("API request failed")
 
 
-@prompts_group.command("delete")
+@prompt_group.command("delete")
 @click.argument("name")
 @click.option("--api-key", help="API key to use for this request")
 def delete_command(name: str, api_key: Optional[str]):
@@ -524,7 +839,7 @@ def delete_command(name: str, api_key: Optional[str]):
         raise click.ClickException("API request failed")
 
 
-@prompts_group.command("info")
+@prompt_group.command("info")
 @click.argument("name")
 @click.option("--api-key", help="API key to use for this request")
 def info_command(name: str, api_key: Optional[str]):
@@ -559,7 +874,7 @@ def info_command(name: str, api_key: Optional[str]):
         raise click.ClickException("API request failed")
 
 
-@prompts_group.command("search")
+@prompt_group.command("search")
 @click.argument("query")
 @click.option("--api-key", help="API key to use for this request")
 def search_command(query: str, api_key: Optional[str]):
