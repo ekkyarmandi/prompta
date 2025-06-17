@@ -26,9 +26,13 @@ def get_password_hash(password: str) -> str:
     return pwd_context.hash(password)
 
 
-def authenticate_user(db: Session, username: str, password: str) -> Union[User, bool]:
-    """Authenticate a user with username and password"""
-    user = db.query(User).filter(User.username == username).first()
+def authenticate_user(db: Session, identifier: str, password: str) -> Union[User, bool]:
+    """Authenticate a user with username or email and password"""
+    # Try to find user by username first, then by email
+    user = db.query(User).filter(User.username == identifier).first()
+    if not user:
+        user = db.query(User).filter(User.email == identifier).first()
+    
     if not user:
         return False
     if not verify_password(password, user.password_hash):

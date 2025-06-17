@@ -19,7 +19,7 @@ class UserCreate(BaseModel):
 
 
 class UserLogin(BaseModel):
-    username: str
+    identifier: str = Field(..., description="Username or email address")
     password: str
 
 

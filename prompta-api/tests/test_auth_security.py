@@ -34,28 +34,38 @@ def test_password_hashing():
 
 
 def test_authenticate_user():
-    """Test user authentication"""
+    """Test user authentication with username or email"""
     # Create a mock user
     mock_user = MagicMock()
     mock_user.username = "testuser"
+    mock_user.email = "test@example.com"
     mock_user.password_hash = get_password_hash("testpassword")
 
     # Create a mock database session
     mock_db = MagicMock()
-    mock_db.query.return_value.filter.return_value.first.return_value = mock_user
 
-    # Test successful authentication
+    # Test successful authentication with username
+    mock_db.query.return_value.filter.return_value.first.return_value = mock_user
     with patch("auth.security.verify_password", return_value=True):
         result = authenticate_user(mock_db, "testuser", "testpassword")
         assert result == mock_user
 
+    # Test successful authentication with email
+    # First call returns None (username not found), second call returns user (email found)
+    mock_db.query.return_value.filter.return_value.first.side_effect = [None, mock_user]
+    with patch("auth.security.verify_password", return_value=True):
+        result = authenticate_user(mock_db, "test@example.com", "testpassword")
+        assert result == mock_user
+
     # Test failed authentication (wrong password)
+    mock_db.query.return_value.filter.return_value.first.side_effect = None
+    mock_db.query.return_value.filter.return_value.first.return_value = mock_user
     with patch("auth.security.verify_password", return_value=False):
         result = authenticate_user(mock_db, "testuser", "wrongpassword")
         assert result is False
 
-    # Test user not found
-    mock_db.query.return_value.filter.return_value.first.return_value = None
+    # Test user not found (neither username nor email exists)
+    mock_db.query.return_value.filter.return_value.first.side_effect = [None, None]
     result = authenticate_user(mock_db, "nonexistentuser", "testpassword")
     assert result is False
 
